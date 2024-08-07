@@ -1,0 +1,15 @@
+[versions]
+kotlin = "1.9.24"
+jooq = "3.18.9"
+spotless = "6.25.0"
+
+# BOMs
+spring-boot = "3.2.5"
+
+[libraries]
+spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+jooq = { module = "org.jooq:jooq", version.ref = "jooq" }
+
+[plugins]
+kotlin = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
