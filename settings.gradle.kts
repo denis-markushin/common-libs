@@ -1,4 +1,4 @@
-rootProject.name = "common-lib"
+rootProject.name = "common-libs"
 
 include("jooq-utils")
 
