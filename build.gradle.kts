@@ -11,11 +11,6 @@ plugins {
 }
 
 allprojects {
-    repositories {
-        mavenCentral()
-        gradlePluginPortal()
-    }
-
     group = "org.dema"
     version = "1.0.0"
 

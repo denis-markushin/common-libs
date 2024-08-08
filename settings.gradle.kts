@@ -5,6 +5,11 @@ include("jooq-utils")
 pluginManagement {
     repositories {
         gradlePluginPortal()
+    }
+}
+
+dependencyResolutionManagement {
+    repositories {
         mavenCentral()
     }
 }
