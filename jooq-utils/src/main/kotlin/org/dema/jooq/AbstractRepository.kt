@@ -2,6 +2,7 @@ package org.dema.jooq
 
 import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.Result
 import org.jooq.Table
 import org.jooq.UpdatableRecord
 import org.jooq.impl.DSL
@@ -38,8 +39,8 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         return dsl.selectFrom(table).where(baseCondition.and(where.invoke(table))).fetchOne()
     }
 
-    fun getAllBy(where: (T) -> Condition): R? {
-        return dsl.selectFrom(table).where(baseCondition.and(where.invoke(table))).fetchOne()
+    fun getAllBy(where: (T) -> Condition): Result<R> {
+        return dsl.selectFrom(table).where(baseCondition.and(where.invoke(table))).fetch()
     }
 
     private fun foldConditions(where: Array<out (T) -> Condition>) = where.fold(DSL.noCondition()) { acc, func -> acc.and(func(table)) }
