@@ -7,7 +7,6 @@ import org.jooq.Result
 import org.jooq.SelectConditionStep
 import org.jooq.Table
 import org.jooq.UpdatableRecord
-import org.jooq.impl.DSL
 import org.jooq.impl.DSL.field
 import org.jooq.impl.DSL.noCondition
 import org.jooq.impl.SQLDataType
@@ -24,6 +23,14 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         return dsl.newRecord(table)
     }
 
+    /**
+     * Inserts or updates a given record. If a conflict on primary keys occurs, the existing row will be updated.
+     *
+     * Inspired by the [article](https://sigpwned.com/2023/08/10/postgres-upsert-created-or-updated)
+     *
+     * @param record The record to upsert.
+     * @return An [UpsertResult] indicating the created or updated record.
+     */
     fun upsert(record: R): UpsertResult<R> {
         return dsl.insertInto(table)
             .set(record)
@@ -34,6 +41,13 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
             .fetchOne { UpsertResult(it.value1(), it.value2()) }
             ?: throw IllegalStateException("Upsert operation failed to return a record")
     }
+
+    /**
+     * Inserts the given record. If a conflict on primary keys occurs, no action is taken.
+     *
+     * @param record The record to insert.
+     * @return The number of affected rows.
+     */
     fun insertOnConflictDoNothing(record: R): Int {
         return dsl.insertInto(table).set(record).onConflictDoNothing().execute()
     }

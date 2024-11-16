@@ -21,6 +21,12 @@ import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 
+/**
+ * Utility object containing helper functions for jOOQ-based operations.
+ * This class provides pagination, sorting, and query utilities that are used to work with DSLContext.
+ *
+ * Inspired by the article: [Calculating Pagination Metadata Without Extra Roundtrips in SQL](https://blog.jooq.org/calculating-pagination-metadata-without-extra-roundtrips-in-sql/)
+ */
 object JooqUtils {
     private const val ORIGINAL_SUBQUERY_NAME: String = "orig"
     private const val TOTAL_ROWS_COLUMN_NAME: String = "total_rows"
@@ -30,7 +36,17 @@ object JooqUtils {
     private const val CURRENT_PAGE_COLUMN_NAME: String = "current_page"
     private val TOTAL_ROWS_FIELD: Field<Int> = count().over().`as`(TOTAL_ROWS_COLUMN_NAME)
 
-    fun paginate(
+    /**
+     * Paginates the given select query with the specified sorting fields, limit, and offset.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of fields to sort by.
+     * @param limit The maximum number of records to be returned.
+     * @param offset The offset from where to start returning records.
+     * @return The paginated result as a [Result] of [Record].
+     */
+    private fun paginate(
         ctx: DSLContext,
         original: Select<*>,
         sort: Array<Field<*>>,
@@ -62,6 +78,21 @@ object JooqUtils {
             .orderBy(*t.fields(*sort)).fetch()
     }
 
+    /**
+     * Paginates the given select query with the specified sorting fields, limit, and offset.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of sorting fields ([SortField]) that defines the sorting order.
+     * @param limit The maximum number of records to return.
+     * @param offset The offset from where to start returning records.
+     * @return The paginated result as a [Result] of [Record].
+     *
+     * This method performs pagination on the provided query by adding sorting fields, a limit, and an offset.
+     * It creates an intermediate table representation to efficiently compute pagination metadata, including
+     * the total row count and current page number.
+     * The query is executed against the given [DSLContext].
+     */
     fun paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -98,6 +129,22 @@ object JooqUtils {
             .fetch()
     }
 
+    /**
+     * Paginates the given select query with the specified sorting fields, limit, offset, and target type.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of fields that defines the sorting order.
+     * @param limit The maximum number of records to return.
+     * @param offset The offset from where to start returning records.
+     * @param targetType The target type class to map the results into.
+     * @return A [Page] of the target records of type [T], representing the paginated result.
+     *
+     * This method performs pagination on the provided query by adding sorting fields, a limit, and an offset.
+     * It creates an intermediate table representation to efficiently compute pagination metadata and maps the result
+     * into the specified target type [T].
+     * The pagination metadata includes the total row count and current page.
+     */
     fun <T> paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -117,6 +164,22 @@ object JooqUtils {
         return PageImpl(res.into(targetType), pageable, totalRows.toLong())
     }
 
+    /**
+     * Paginates the given select query with the specified sorting fields, limit, offset, and target table.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of fields that defines the sorting order.
+     * @param limit The maximum number of records to return.
+     * @param offset The offset from where to start returning records.
+     * @param targetTable The target table into which the results should be mapped.
+     * @return A [Page] of the target records of type [T], representing the paginated result.
+     *
+     * This method performs pagination on the provided query by adding sorting fields, a limit, and an offset.
+     * It uses an intermediate table representation to efficiently compute pagination metadata and maps the results
+     * into the specified target table [T].
+     * The pagination metadata includes the total row count and current page.
+     */
     fun <T : Record?> paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -136,6 +199,22 @@ object JooqUtils {
         return PageImpl(res.into(targetTable), pageable, totalRows.toLong())
     }
 
+    /**
+     * Paginates the given select query with the specified sorting fields, limit, offset, and target table.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of [SortField] that defines the sorting order.
+     * @param limit The maximum number of records to return.
+     * @param offset The offset from where to start returning records.
+     * @param targetTable The target table into which the results should be mapped.
+     * @return A [Page] of the target records of type [T], representing the paginated result.
+     *
+     * This method performs pagination on the provided query by adding sorting fields, a limit, and an offset.
+     * It uses an intermediate table representation to efficiently compute pagination metadata and maps the results
+     * into the specified target table [T].
+     * The pagination metadata includes the total row count and current page.
+     */
     fun <T : Record?> paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -155,6 +234,18 @@ object JooqUtils {
         return PageImpl(res.into(targetTable), pageable, totalRows.toLong())
     }
 
+    /**
+     * Paginates the given select query with the specified sorting fields and pageable information.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of fields that defines the sorting order.
+     * @param pageable The pagination information, including page size and offset.
+     * @return A [Page] of [Record], representing the paginated result.
+     *
+     * This method performs pagination based on the provided pageable information and sorts the results according to the specified fields.
+     * It handles both paginated and unpaged requests, providing the appropriate result set.
+     */
     fun paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -179,6 +270,19 @@ object JooqUtils {
         return PageImpl(res, pageable, totalRows.toLong())
     }
 
+    /**
+     * Paginates the given select query with the specified sorting fields, pageable information, and target table.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of fields that defines the sorting order.
+     * @param pageable The pagination information, including page size and offset.
+     * @param targetTable The target table into which the results should be mapped.
+     * @return A [Page] of the target records of type [T], representing the paginated result.
+     *
+     * This method performs pagination on the provided query by adding sorting fields and pageable information.
+     * The results are mapped into the specified target table [T], and pagination metadata includes the total row count.
+     */
     fun <T : Record?> paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -198,6 +302,18 @@ object JooqUtils {
         return paginate(ctx, original, sort, pageable.pageSize.toLong(), pageable.offset, targetTable)
     }
 
+    /**
+     * Paginates the given select query with pageable information.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param pageable The pagination information, including page size and offset.
+     * @return A [Page] of [Record], representing the paginated result.
+     *
+     * This method handles both paginated and unpaged requests.
+     * If pageable is unpaged, it returns all records from the query.
+     * Otherwise, it applies pagination and returns the appropriate result set.
+     */
     fun paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -216,6 +332,21 @@ object JooqUtils {
         return PageImpl(res, pageable, totalRows.toLong())
     }
 
+    /**
+     * Paginates the given select query with the specified sorting fields, pageable information, and target table.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of [SortField] that defines the sorting order.
+     * @param pageable The pagination information, including page size and offset.
+     * @param targetTable The target table into which the results should be mapped.
+     * @return A [Page] of the target records of type [T], representing the paginated result.
+     *
+     * This method performs pagination on the provided query by adding sorting fields and pageable information.
+     * The results are mapped into the specified target table [T].
+     * It also handles sorting directions to provide
+     * the correct order of results.
+     */
     fun <T : Record?> paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -238,6 +369,20 @@ object JooqUtils {
         return paginate(ctx, original, sort, pageable.pageSize.toLong(), pageable.offset, targetTable)
     }
 
+    /**
+     * Paginates the given select query with the specified sorting fields, pageable information, and target type.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of fields that defines the sorting order.
+     * @param pageable The pagination information, including page size and offset.
+     * @param targetType The target type class to map the results into.
+     * @return A [Page] of the target records of type [T], representing the paginated result.
+     *
+     * This method performs pagination on the provided query by adding sorting fields and pageable information.
+     * If the pageable is unpaged, it returns all the results sorted by the given fields.
+     * Otherwise, it applies pagination to the query and maps the results into the specified target type [T].
+     */
     fun <T : Record> paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -257,6 +402,19 @@ object JooqUtils {
         return paginate(ctx, original, sort, pageable.pageSize.toLong(), pageable.offset, targetType)
     }
 
+    /**
+     * Paginates the given select query based on the provided pageable information and target table.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param pageable The pagination information, including page size and offset.
+     * @param targetTable The target table that the results should be mapped to.
+     * @return A [Page] of the target records, representing the paginated result.
+     *
+     * This method supports both paginated and unpaged requests.
+     * If the pageable is unpaged, it returns all records.
+     * Otherwise, it uses the provided pagination information (limit and offset) to return a subset of records.
+     */
     fun <T : Record> paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -283,6 +441,16 @@ object JooqUtils {
         return PageImpl(res.into(targetTable), pageable, totalRows.toLong())
     }
 
+    /**
+     * Paginates the given select query with the specified sorting fields, limit, and offset.
+     *
+     * @param ctx The DSLContext to execute the query.
+     * @param original The original select query that should be paginated.
+     * @param sort An array of fields to sort by.
+     * @param limit The maximum number of records to be returned.
+     * @param offset The offset from where to start returning records.
+     * @return The paginated result as a [Result] of [Record].
+     */
     fun paginate(
         ctx: DSLContext,
         original: Select<*>,
@@ -321,10 +489,23 @@ object JooqUtils {
             .fetch()
     }
 
+    /**
+     * Retrieves the total number of rows from the provided record.
+     *
+     * @param rec The record containing the total rows field.
+     * @return The total number of rows, or 0 if not available.
+     */
     private fun getTotalRows(rec: Record): Int {
         return TOTAL_ROWS_FIELD[rec] ?: 0
     }
 
+    /**
+     * Converts a Spring Data [Sort] object into a list of jOOQ [SortField] objects for the given table.
+     *
+     * @param sort The Spring Data Sort object containing sorting information.
+     * @param table The table for which to generate sort fields.
+     * @return A list of [SortField] objects representing the sorting logic.
+     */
     private fun getSortFields(
         sort: Sort?,
         table: Table<*>,
@@ -342,6 +523,13 @@ object JooqUtils {
         }.toList()
     }
 
+    /**
+     * Retrieves the corresponding table field for the given sort field name.
+     *
+     * @param sortFieldName The name of the field to sort by.
+     * @param table The table containing the field.
+     * @return The [TableField] that corresponds to the sort field name.
+     */
     private fun getTableField(
         sortFieldName: String,
         table: Table<*>,
@@ -349,6 +537,13 @@ object JooqUtils {
         return table.field(sortFieldName) as TableField<*, *>
     }
 
+    /**
+     * Converts a given [TableField] into a [SortField] with the specified sort direction.
+     *
+     * @param tableField The table field to be converted.
+     * @param sortDirection The direction of sorting, either ASC or DESC.
+     * @return The [SortField] for the provided table field with the specified direction.
+     */
     private fun convertTableFieldToSortField(
         tableField: TableField<*, *>,
         sortDirection: Sort.Direction,
