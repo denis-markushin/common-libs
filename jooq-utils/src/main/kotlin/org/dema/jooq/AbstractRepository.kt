@@ -2,10 +2,15 @@ package org.dema.jooq
 
 import org.jooq.Condition
 import org.jooq.DSLContext
+import org.jooq.OrderField
 import org.jooq.Result
+import org.jooq.SelectConditionStep
 import org.jooq.Table
 import org.jooq.UpdatableRecord
 import org.jooq.impl.DSL
+import org.jooq.impl.DSL.field
+import org.jooq.impl.DSL.noCondition
+import org.jooq.impl.SQLDataType
 import org.springframework.beans.factory.annotation.Autowired
 
 abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
@@ -19,6 +24,16 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         return dsl.newRecord(table)
     }
 
+    fun upsert(record: R): UpsertResult<R> {
+        return dsl.insertInto(table)
+            .set(record)
+            .onConflict(table.primaryKey!!.fields)
+            .doUpdate()
+            .setAllToExcluded()
+            .returningResult(table, field("(xmax = 0)", SQLDataType.BOOLEAN).`as`("_created"))
+            .fetchOne { UpsertResult(it.value1(), it.value2()) }
+            ?: throw IllegalStateException("Upsert operation failed to return a record")
+    }
     fun insertOnConflictDoNothing(record: R): Int {
         return dsl.insertInto(table).set(record).onConflictDoNothing().execute()
     }
