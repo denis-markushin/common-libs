@@ -46,7 +46,7 @@ object JooqUtils {
      * @param offset The offset from where to start returning records.
      * @return The paginated result as a [Result] of [Record].
      */
-    private fun paginate(
+    fun paginate(
         ctx: DSLContext,
         original: Select<*>,
         sort: Array<Field<*>>,
