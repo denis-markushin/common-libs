@@ -1,0 +1,2 @@
+org.dema.security.config.XRolesAutoConfiguration
+org.dema.security.config.BaseSecurityAutoConfiguration

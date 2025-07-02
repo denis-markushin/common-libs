@@ -6,7 +6,8 @@ repositories {
 }
 
 plugins {
-    alias(libs.plugins.kotlin) apply false
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.spring) apply false
     alias(libs.plugins.spotless) apply false
 }
 
@@ -33,36 +34,42 @@ allprojects {
     }
 }
 
-subprojects {
-    apply {
-        plugin(rootProject.libs.plugins.kotlin.get().pluginId)
+(subprojects - project(":bom")).forEach { subproject ->
+    subproject.apply {
+        plugin(libs.plugins.kotlin.jvm.get().pluginId)
         plugin("java-library")
         plugin("signing")
     }
 
-    configurePublishing()
+    if (subproject.name.contains("-starter")) {
+        subproject.apply {
+            plugin(libs.plugins.kotlin.spring.get().pluginId)
+        }
 
-    dependencies {
-        "implementation"(kotlin("stdlib"))
-    }
-
-    plugins.withType<JavaPlugin> {
-        extensions.configure<JavaPluginExtension> {
-            sourceCompatibility = JavaVersion.VERSION_17
-            targetCompatibility = JavaVersion.VERSION_17
-            withSourcesJar()
+        subproject.dependencies {
+            "implementation"("org.springframework.boot:spring-boot-starter-web")
+            // Test libs
+            "testImplementation"("org.junit.jupiter:junit-jupiter-api")
+            "testImplementation"("org.springframework.boot:spring-boot-starter-test") {
+                exclude(group = "org.mockito")
+            }
+            "testImplementation"("com.ninja-squad:springmockk")
+            "testImplementation"("com.willowtreeapps.assertk:assertk-jvm")
+            "testImplementation"("io.kotest:kotest-assertions-core")
         }
     }
 
-    tasks.withType<KotlinCompile> {
-        kotlinOptions {
-            jvmTarget = JavaVersion.VERSION_17.toString()
-        }
+    subproject.configurePublishing()
+    subproject.configureJavaCompilation()
+    subproject.configureKotlinCompilation()
+
+    subproject.tasks.withType<Test> {
+        useJUnitPlatform()
     }
 
-    tasks.withType<Jar> {
+    subproject.tasks.withType<Jar> {
         manifest {
-            attributes("Implementation-Version" to project.version)
+            attributes("Implementation-Version" to subproject.version)
         }
     }
 }
@@ -88,6 +95,32 @@ fun Project.configurePublishing() {
             publication.apply {
                 logger.lifecycle("Published $groupId:$artifactId:$version artifact")
             }
+        }
+    }
+}
+
+fun Project.configureJavaCompilation() {
+    plugins.withType<JavaPlugin> {
+        extensions.configure<JavaPluginExtension> {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+}
+
+private fun Project.configureKotlinCompilation() {
+    tasks.withType<KotlinCompile> {
+        kotlinOptions {
+            jvmTarget = JavaVersion.VERSION_17.toString()
+            freeCompilerArgs =
+                listOf(
+                    "-Xjsr305=strict",
+                    "-Xemit-jvm-type-annotations",
+                )
+            javaParameters = true
+            allWarningsAsErrors = true
         }
     }
 }

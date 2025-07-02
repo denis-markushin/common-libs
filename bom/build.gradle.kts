@@ -1,0 +1,37 @@
+plugins {
+    `java-platform`
+    id("org.gradle.maven-publish")
+}
+
+javaPlatform {
+    allowDependencies()
+}
+
+dependencies {
+    api(platform(libs.spring.boot.dependencies))
+    api(platform(libs.graphql.dgs.dependencies))
+    api(platform(libs.testcontainers.bom))
+
+    constraints {
+        // Third party libs
+        api(libs.jaywayJsonPath)
+        // Test
+        api(libs.assertk)
+        api(libs.kotest.assertions)
+        api(libs.mockk)
+        api(libs.springmock)
+    }
+}
+
+publishing {
+    repositories {
+        mavenLocal()
+    }
+
+    publications {
+        create<MavenPublication>("maven") {
+            artifactId = "bom"
+            from(components["javaPlatform"])
+        }
+    }
+}
