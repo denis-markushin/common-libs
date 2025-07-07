@@ -1,5 +1,7 @@
 dependencies {
-    implementation(platform(rootProject.libs.spring.boot.dependencies))
-    api(rootProject.libs.jooq)
+    implementation(platform(project(":bom")))
+    api(libs.jooq)
     api("org.springframework.data:spring-data-commons")
+    testImplementation("org.junit.jupiter:junit-jupiter-api")
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine")
 }

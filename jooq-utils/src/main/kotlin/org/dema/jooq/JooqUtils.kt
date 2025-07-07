@@ -193,7 +193,7 @@ object JooqUtils {
         val pageable = OffsetBasedPageRequest(offset, limit)
         if (res.isEmpty()) return Page.empty(pageable)
 
-        val anyRec = res.stream().findAny().get()
+        val anyRec = res.first()
         val totalRows = getTotalRows(anyRec)
 
         return PageImpl(res.into(targetTable), pageable, totalRows.toLong())
@@ -264,7 +264,7 @@ object JooqUtils {
         val res = paginate(ctx, original, sort, pageable.pageSize.toLong(), pageable.offset)
         if (res.isEmpty()) return Page.empty(pageable)
 
-        val anyRec = res.stream().findAny().get()
+        val anyRec = res.first()
         val totalRows = getTotalRows(anyRec)
 
         return PageImpl(res, pageable, totalRows.toLong())
@@ -435,7 +435,7 @@ object JooqUtils {
 
         if (res.isEmpty()) return Page.empty(pageable)
 
-        val anyRec = res.stream().findAny().get()
+        val anyRec = res.first()
         val totalRows = getTotalRows(anyRec)
 
         return PageImpl(res.into(targetTable), pageable, totalRows.toLong())

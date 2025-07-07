@@ -47,15 +47,15 @@ class OffsetBasedPageRequest(offset: Long, limit: Long, sort: Sort = Sort.unsort
     }
 
     override fun next(): Pageable {
-        return OffsetBasedPageRequest((getOffset() + pageSize).toInt().toLong(), pageSize.toLong(), getSort())
+        return OffsetBasedPageRequest((offset + pageSize).toInt().toLong(), pageSize.toLong(), sort)
     }
 
     private fun previous(): OffsetBasedPageRequest {
         return if (hasPrevious()) {
             OffsetBasedPageRequest(
-                (getOffset() - pageSize).toInt().toLong(),
+                (offset - pageSize).toInt().toLong(),
                 pageSize.toLong(),
-                getSort(),
+                sort,
             )
         } else {
             this
@@ -67,7 +67,7 @@ class OffsetBasedPageRequest(offset: Long, limit: Long, sort: Sort = Sort.unsort
     }
 
     override fun first(): Pageable {
-        return OffsetBasedPageRequest(0, pageSize.toLong(), getSort())
+        return OffsetBasedPageRequest(0, pageSize.toLong(), sort)
     }
 
     override fun withPage(pageNumber: Int): Pageable {
@@ -75,6 +75,6 @@ class OffsetBasedPageRequest(offset: Long, limit: Long, sort: Sort = Sort.unsort
     }
 
     override fun hasPrevious(): Boolean {
-        return offset > limit
+        return offset > 0
     }
 }
