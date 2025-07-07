@@ -1,6 +1,6 @@
 rootProject.name = "common-libs"
 
-include("jooq-utils")
+include("bom", "jooq-utils", "security-starter")
 
 pluginManagement {
     repositories {
