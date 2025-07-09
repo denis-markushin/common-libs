@@ -23,13 +23,13 @@ allprojects {
         kotlin {
             target("**/*.kt")
             targetExclude("${layout.buildDirectory}/**/*.kt")
-            ktlint("1.2.1").setEditorConfigPath(rootProject.file(".editorconfig").path)
+            ktlint(libs.versions.ktlint.get()).setEditorConfigPath(rootProject.file(".editorconfig").path)
             toggleOffOn()
             trimTrailingWhitespace()
         }
         kotlinGradle {
             target("*.gradle.kts")
-            ktlint("1.2.1")
+            ktlint(libs.versions.ktlint.get())
         }
     }
 }
