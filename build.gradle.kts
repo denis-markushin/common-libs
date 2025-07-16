@@ -1,5 +1,11 @@
 import com.diffplug.gradle.spotless.SpotlessExtension
+import com.vanniktech.maven.publish.MavenPublishBaseExtension
+import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+group = property("group") as String
+version = property("version") as String
+
 
 repositories {
     mavenCentral()
@@ -8,12 +14,13 @@ repositories {
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.spring) apply false
-    alias(libs.plugins.spotless) apply false
+    alias(libs.plugins.spotless) apply true
+    alias(libs.plugins.vanniktechMavenPublish) apply false
 }
 
 allprojects {
-    group = "org.dema"
-    version = "1.0.0"
+    group = rootProject.group
+    version = rootProject.version
 
     apply {
         plugin(rootProject.libs.plugins.spotless.get().pluginId)
@@ -34,22 +41,33 @@ allprojects {
     }
 }
 
-(subprojects - project(":bom")).forEach { subproject ->
-    subproject.apply {
-        plugin(libs.plugins.kotlin.jvm.get().pluginId)
+subprojects {
+    apply { plugin(rootProject.libs.plugins.vanniktechMavenPublish.get().pluginId) }
+    configurePublishing()
+}
+
+configure(subprojects.filterNot { it == project(":bom") }) {
+    apply {
         plugin("java-library")
-        plugin("signing")
+        plugin(rootProject.libs.plugins.kotlin.jvm.get().pluginId)
     }
 
-    if (subproject.name.contains("-starter")) {
-        subproject.apply {
-            plugin(libs.plugins.kotlin.spring.get().pluginId)
-        }
+    dependencies {
+        "testImplementation"("org.junit.jupiter:junit-jupiter-api")
+        "testRuntimeOnly"("org.junit.jupiter:junit-jupiter-engine")
+    }
 
-        subproject.dependencies {
+    // Spring Boot starters dependencies
+    if (name.contains("-starter")) {
+        apply(plugin = rootProject.libs.plugins.kotlin.spring.get().pluginId)
+
+        dependencies {
+            // Apply the BOM to applicable subprojects.
+            "api"(platform(project(":bom")))
+
             "implementation"("org.springframework.boot:spring-boot-starter-web")
+
             // Test libs
-            "testImplementation"("org.junit.jupiter:junit-jupiter-api")
             "testImplementation"("org.springframework.boot:spring-boot-starter-test") {
                 exclude(group = "org.mockito")
             }
@@ -59,33 +77,46 @@ allprojects {
         }
     }
 
-    subproject.configurePublishing()
-    subproject.configureJavaCompilation()
-    subproject.configureKotlinCompilation()
+    configureKotlinCompilation()
 
-    subproject.tasks.withType<Test> {
+    tasks.withType<Test> {
         useJUnitPlatform()
     }
 
-    subproject.tasks.withType<Jar> {
+    tasks.withType<Jar> {
         manifest {
-            attributes("Implementation-Version" to subproject.version)
+            attributes("Implementation-Version" to version)
         }
     }
 }
 
 fun Project.configurePublishing() {
-    apply {
-        plugin("maven-publish")
-    }
+    extensions.configure<MavenPublishBaseExtension> {
+        coordinates(project.group.toString(), project.name, project.version.toString())
 
-    extensions.configure<PublishingExtension> {
-        repositories {
-            mavenLocal()
-        }
-        publications {
-            create<MavenPublication>("mavenJava") {
-                from(components["java"])
+        pom {
+            name.set(project.name)
+            description.set(project.description)
+            inceptionYear.set("2025")
+            url.set("https://github.com/denis-markushin/common-libs/")
+            licenses {
+                license {
+                    name.set("The Apache License, Version 2.0")
+                    url.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                    distribution.set("http://www.apache.org/licenses/LICENSE-2.0.txt")
+                }
+            }
+            developers {
+                developer {
+                    id.set("denis-markushin")
+                    name.set("Denis Markushin")
+                    url.set("https://github.com/denis-markushin/")
+                }
+            }
+            scm {
+                url.set("https://github.com/denis-markushin/common-libs/")
+                connection.set("scm:git:git://github.com:denis-markushin/common-libs.git")
+                developerConnection.set("scm:git:ssh://git@github.com:denis-markushin/common-libs.git")
             }
         }
     }
@@ -99,26 +130,15 @@ fun Project.configurePublishing() {
     }
 }
 
-fun Project.configureJavaCompilation() {
-    plugins.withType<JavaPlugin> {
-        extensions.configure<JavaPluginExtension> {
-            sourceCompatibility = JavaVersion.VERSION_17
-            targetCompatibility = JavaVersion.VERSION_17
-            withSourcesJar()
-            withJavadocJar()
+private fun Project.configureKotlinCompilation() {
+    extensions.configure<KotlinJvmProjectExtension> {
+        jvmToolchain {
+            languageVersion.set(JavaLanguageVersion.of(17))
         }
     }
-}
-
-private fun Project.configureKotlinCompilation() {
     tasks.withType<KotlinCompile> {
         kotlinOptions {
-            jvmTarget = JavaVersion.VERSION_17.toString()
-            freeCompilerArgs =
-                listOf(
-                    "-Xjsr305=strict",
-                    "-Xemit-jvm-type-annotations",
-                )
+            freeCompilerArgs = listOf("-Xjsr305=strict")
             javaParameters = true
             allWarningsAsErrors = true
         }
