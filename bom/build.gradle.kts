@@ -1,6 +1,7 @@
+description = "Billing Of Materials"
+
 plugins {
     `java-platform`
-    id("org.gradle.maven-publish")
 }
 
 javaPlatform {
@@ -20,18 +21,5 @@ dependencies {
         api(libs.kotest.assertions)
         api(libs.mockk)
         api(libs.springmock)
-    }
-}
-
-publishing {
-    repositories {
-        mavenLocal()
-    }
-
-    publications {
-        create<MavenPublication>("maven") {
-            artifactId = "bom"
-            from(components["javaPlatform"])
-        }
     }
 }
