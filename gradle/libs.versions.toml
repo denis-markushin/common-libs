@@ -5,6 +5,7 @@ spotless = "6.25.0"
 
 # BOMs
 spring-boot = "3.2.5"
+spring-cloud = "2023.0.3"
 graphql-dgs = "8.7.1"
 testContainers = "1.17.6"
 
@@ -20,6 +21,7 @@ ktlint = "1.2.1"
 [libraries]
 # BOMs
 spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
 graphql-dgs-dependencies = { module = "com.netflix.graphql.dgs:graphql-dgs-platform-dependencies", version.ref = "graphql-dgs" }
 testcontainers-bom = { module = "org.testcontainers:testcontainers-bom", version.ref = "testContainers" }
 
