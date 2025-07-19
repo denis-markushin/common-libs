@@ -6,11 +6,6 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 group = property("group") as String
 version = property("version") as String
 
-
-repositories {
-    mavenCentral()
-}
-
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.spring) apply false
