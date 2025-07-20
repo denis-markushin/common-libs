@@ -48,8 +48,8 @@ configure(subprojects.filterNot { it == project(":bom") }) {
     }
 
     dependencies {
-        "testImplementation"("org.junit.jupiter:junit-jupiter-api")
-        "testRuntimeOnly"("org.junit.jupiter:junit-jupiter-engine")
+        "testImplementation"("org.junit.jupiter:junit-jupiter")
+        "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
     }
 
     // Spring Boot starters dependencies
