@@ -11,7 +11,7 @@ javaPlatform {
 dependencies {
     api(platform(libs.spring.boot.dependencies))
     api(platform(libs.spring.cloud.dependencies))
-    api(platform(libs.graphql.dgs.dependencies))
+    api(platform(libs.netflix.dgs.dependencies))
     api(platform(libs.testcontainers.bom))
 
     constraints {
