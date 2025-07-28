@@ -1,6 +1,11 @@
 rootProject.name = "common-libs"
 
-include("bom", "jooq-utils", "security-starter")
+include(
+    "bom",
+    "jooq-utils",
+    "security-starter",
+    "jooq-liquibase-testcontainer",
+)
 
 pluginManagement {
     repositories {
