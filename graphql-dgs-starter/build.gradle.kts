@@ -1,3 +1,5 @@
+description = "Spring Boot starter that simplifies building GraphQL APIs with Jooq and DGS Framework"
+
 dependencies {
     implementation(platform(project(":bom")))
 
