@@ -9,9 +9,18 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.filter.OncePerRequestFilter
 
+/** Header name that may contain a comma separated list of authorities. */
 private const val AUTHORITIES_HEADER = "X-Roles"
 
+/**
+ * A servlet filter that extracts authorities from the `X-Roles` header and
+ * appends them to the current [Authentication].
+ */
 class XRolesAuthoritiesFilter : OncePerRequestFilter() {
+    /**
+     * Adds authorities from the `X-Roles` header to the current authentication
+     * if the header is present and contains values.
+     */
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
