@@ -61,6 +61,14 @@ fun <T : Record> List<T>.toConnection(pageable: RelayPageable): Connection<T> {
     return DefaultConnection(edges, pageInfo)
 }
 
+inline fun <T, R> Connection<T>.map(transform: (T) -> R): DefaultConnection<R> {
+    val edges = this.edges.map {
+        val newNode = transform(it.node)
+        DefaultEdge(newNode, it.cursor)
+    }
+    return DefaultConnection(edges, this.pageInfo)
+}
+
 /** Creates an empty [Connection] with no edges and default page info. */
 private fun <T> emptyConnection(): Connection<T> {
     val pageInfo: PageInfo = DefaultPageInfo(null, null, false, false)
