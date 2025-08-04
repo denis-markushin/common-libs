@@ -14,6 +14,7 @@ import org.jooq.Record
 import org.jooq.Result
 import org.jooq.Table
 import org.jooq.UpdatableRecord
+import org.springframework.core.convert.ConversionService
 
 /**
  * Fetches records using Relay pagination parameters.
@@ -64,4 +65,20 @@ fun <T : Record> List<T>.toConnection(pageable: RelayPageable): Connection<T> {
 private fun <T> emptyConnection(): Connection<T> {
     val pageInfo: PageInfo = DefaultPageInfo(null, null, false, false)
     return DefaultConnection(emptyList(), pageInfo)
+}
+
+/**
+ * Converts the given [src] object to the target type [T] using this [ConversionService].
+ *
+ * This function is an inline reified wrapper around [ConversionService.convert], allowing
+ * the target type to be inferred without explicitly passing a `Class<T>` instance.
+ *
+ * @param src the source object to convert, or `null`
+ * @return the converted object of type [T], or `null` if the source is `null`
+ *
+ * @throws org.springframework.core.convert.ConversionFailedException if the conversion fails
+ * @see ConversionService.convert
+ */
+inline fun <reified T> ConversionService.convert(src: Any?): T? {
+    return src?.let { this.convert(src, T::class.java) }
 }
