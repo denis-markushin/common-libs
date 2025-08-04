@@ -6,16 +6,12 @@ with [Jooq](https://www.jooq.org/) for building powerful and type-safe GraphQL A
 This starter simplifies pagination, sorting, and cursor-based navigation using idiomatic Kotlin and Spring Boot
 conventions.
 
----
-
 ## Features
 
 * Cursor-based pagination (Relay-style)
 * Sorting with safe enum-to-field mapping
 * Base64-encoded cursors
 * Type-safe pagination helpers built on top of Jooq
-
----
 
 ## Requirements
 
@@ -24,8 +20,6 @@ conventions.
 * Kotlin (recommended)
 * Netflix DGS Framework
 * Jooq
-
----
 
 ## Setup
 
@@ -36,8 +30,6 @@ dependencies {
     implementation("org.dema.graphql:graphql-dgs-starter:<latest-version>")
 }
 ```
-
----
 
 ## Usage
 
@@ -110,8 +102,6 @@ shared config component.
 For small projects or isolated cases, inline registration in services can be perfectly fine.
 For larger codebases or when sorting logic is shared across multiple layers, centralizing it is often more maintainable.
 
----
-
 ### 2. Use `RelayPageable` and generate cursors:
 
 The extension function `toConnection(RelayPageable)` transforms a list of Jooq `Record` objects into a GraphQL
@@ -132,8 +122,6 @@ fun users(
     return records.toConnection(pageable).map(::convert)
 }
 ```
-
----
 
 ## License
 
