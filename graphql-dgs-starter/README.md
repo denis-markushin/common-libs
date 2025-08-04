@@ -111,15 +111,37 @@ It uses the sorting and cursor fields from `RelayPageable` to calculate page bou
 ```kotlin
 @DgsData(parentType = "Query")
 fun users(
-    first: Int,
+    first: Int = 10,
     after: String?,
-    sort: UsersSort,
-    dfe: DgsDataFetchingEnvironment
+    sort: UsersSort = UsersSort.CREATED_AT_DESC,
+    filter: UsersFilter?,
 ): Connection<User> {
     val pageable = RelayPageable(after, first, sort)
-    val records = usersService.getUsers(pageable.orderByClauses, pageable.seekValues)
+    return usersService.getAll(relayPageable, filter)
+}
 
-    return records.toConnection(pageable).map(::convert)
+@Service
+class UsersService(
+  private val cs: ConversionService,
+  private val usersRepo: UsersRepo,
+) {
+
+  init {
+    OrderByClausesMapping.register {
+      key(UsersSort.CREATED_AT_DESC).fields(USERS.CREATED_AT.desc())
+    }
+  }
+
+  fun getAll(
+    relayPageable: RelayPageable,
+    filter: UsersFilter?,
+  ): Connection<User> {
+    val condition: Condition = cs.convert(filter) ?: noCondition()
+    return usersRepo
+      .getAllBy(relayPageable = relayPageable, where = condition)
+      .toConnection(relayPageable)
+      .map(cs::convert)
+  }
 }
 ```
 
