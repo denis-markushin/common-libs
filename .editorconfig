@@ -15,8 +15,6 @@ ij_smart_tabs = false
 ij_wrap_on_typing = false
 ij_kotlin_imports_layout = *
 
-ktlint_standard_argument-list-wrapping = disabled
-
 [*.java]
 ij_java_align_consecutive_assignments = false
 ij_java_align_consecutive_variable_declarations = false
@@ -268,7 +266,7 @@ ij_editorconfig_space_before_colon = false
 ij_editorconfig_space_before_comma = false
 ij_editorconfig_spaces_around_assignment_operators = true
 
-[{*.gradle, *.groovy, *.gant, *.gdsl, *.gy, *.gson}]
+[{*.gradle,*.groovy,*.gant,*.gdsl,*.gy,*.gson}]
 ij_groovy_align_group_field_declarations = false
 ij_groovy_align_multiline_array_initializer_expression = false
 ij_groovy_align_multiline_assignment = false
@@ -501,24 +499,7 @@ ij_kotlin_wrap_elvis_expressions = 1
 ij_kotlin_wrap_expression_body_functions = 0
 ij_kotlin_wrap_first_method_in_call_chain = false
 
-[{*.yml, *.yaml}]
+[{*.yml,*.yaml}]
 indent_size = 2
 ij_yaml_keep_indents_on_empty_lines = false
 ij_yaml_keep_line_breaks = true
-
-[{*.zsh, *.bash, *.sh}]
-indent_size = 2
-tab_width = 2
-ij_shell_binary_ops_start_line = false
-ij_shell_keep_column_alignment_padding = false
-ij_shell_minify_program = false
-ij_shell_redirect_followed_by_space = false
-ij_shell_switch_cases_indented = false
-
-[{phpunit.xml.dist, do_registration_api_multi, *.jhm, *.xjb, *.rng, *.wsdl, *.wsdd, *.fxml, *.plan, *.bpmn, *.pom, *.xslt, *.jrxml, *.ant, *.xul, *.xsl, *.xsd, *.tld, *.jnlp, *.wadl, *.xml}]
-ij_xml_block_comment_at_first_column = true
-ij_xml_keep_indents_on_empty_lines = false
-ij_xml_line_comment_at_first_column = true
-
-[{spring.schemas, spring.handlers, *.properties}]
-ij_properties_align_group_field_declarations = false

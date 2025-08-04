@@ -19,7 +19,9 @@ class OffsetBasedPageRequest(offset: Long, limit: Long, sort: Sort = Sort.unsort
      * @param properties the properties to sort by, must not be null or empty.
      */
     constructor(offset: Int, limit: Int, direction: Sort.Direction, vararg properties: String) : this(
-        offset.toLong(), limit.toLong(), Sort.by(direction, *properties),
+        offset.toLong(),
+        limit.toLong(),
+        Sort.by(direction, *properties),
     )
 
     init {
