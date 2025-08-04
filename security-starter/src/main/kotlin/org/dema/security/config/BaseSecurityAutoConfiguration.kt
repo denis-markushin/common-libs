@@ -9,10 +9,24 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.invoke
 import org.springframework.security.web.SecurityFilterChain
 
+/**
+ * Basic Spring Security configuration that disables CSRF and exposes
+ * a permissive default [SecurityFilterChain].
+ *
+ * All Swagger, actuator, GraphQL and internal endpoints are accessible
+ * without authentication, while any other request requires the user to be
+ * authenticated.
+ */
 @AutoConfiguration
 @EnableWebSecurity
 @EnableMethodSecurity
 class BaseSecurityAutoConfiguration {
+    /**
+     * Builds the default [SecurityFilterChain] applied to the application.
+     *
+     * @param http the HTTP security builder
+     * @return configured security filter chain
+     */
     @Bean
     @Order(0)
     fun defaultSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {

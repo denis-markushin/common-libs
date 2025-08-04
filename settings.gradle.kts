@@ -5,6 +5,7 @@ include(
     "jooq-utils",
     "security-starter",
     "jooq-liquibase-testcontainer",
+    "graphql-dgs-starter",
 )
 
 pluginManagement {
