@@ -38,9 +38,7 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
      *
      * @return A new instance of the record type associated with the table.
      */
-    fun newRec(): R {
-        return dsl.newRecord(table)
-    }
+    fun newRec(): R = dsl.newRecord(table)
 
     /**
      * Inserts or updates a given record. If a conflict on primary keys occurs, the existing row will be updated.
@@ -50,16 +48,14 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
      * @param record The record to upsert.
      * @return An [UpsertResult] indicating the created or updated record.
      */
-    fun upsert(record: R): UpsertResult<R> {
-        return dsl.insertInto(table)
-            .set(record)
-            .onConflict(table.primaryKey!!.fields)
-            .doUpdate()
-            .setAllToExcluded()
-            .returningResult(table, field("(xmax = 0)", SQLDataType.BOOLEAN).`as`("_created"))
-            .fetchOne { UpsertResult(it.value1(), it.value2()) }
-            ?: throw IllegalStateException("Upsert operation failed to return a record")
-    }
+    fun upsert(record: R): UpsertResult<R> = dsl.insertInto(table)
+        .set(record)
+        .onConflict(table.primaryKey!!.fields)
+        .doUpdate()
+        .setAllToExcluded()
+        .returningResult(table, field("(xmax = 0)", SQLDataType.BOOLEAN).`as`("_created"))
+        .fetchOne { UpsertResult(it.value1(), it.value2()) }
+        ?: throw IllegalStateException("Upsert operation failed to return a record")
 
     /**
      * Inserts the given record. If a conflict on primary keys occurs, no action is taken.
@@ -67,9 +63,7 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
      * @param record The record to insert.
      * @return The number of affected rows.
      */
-    fun insertOnConflictDoNothing(record: R): Int {
-        return dsl.insertInto(table).set(record).onConflictDoNothing().execute()
-    }
+    fun insertOnConflictDoNothing(record: R): Int = dsl.insertInto(table).set(record).onConflictDoNothing().execute()
 
     /**
      * Stores multiple records in batch.
@@ -95,9 +89,7 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
      * @param where Conditions to be applied for deletion.
      * @return Number of records deleted.
      */
-    fun deleteBy(vararg where: (T) -> Condition): Int {
-        return dsl.deleteFrom(table).where(foldConditions(where)).execute()
-    }
+    fun deleteBy(vararg where: (T) -> Condition): Int = dsl.deleteFrom(table).where(foldConditions(where)).execute()
 
     /**
      * Fetches a single record matching the provided condition.
@@ -109,12 +101,10 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
     fun getOneBy(
         forUpdate: Boolean = false,
         where: (T) -> Condition,
-    ): R? {
-        return baseQuery()
-            .and(where.invoke(table))
-            .apply { if (forUpdate) forUpdate().skipLocked() }
-            .fetchOne()
-    }
+    ): R? = baseQuery()
+        .and(where.invoke(table))
+        .apply { if (forUpdate) forUpdate().skipLocked() }
+        .fetchOne()
 
     /**
      * Fetches all records matching the provided condition.
@@ -126,12 +116,10 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
     fun getAllBy(
         forUpdate: Boolean = false,
         where: (T) -> Condition,
-    ): Result<R> {
-        return baseQuery()
-            .and(where.invoke(table))
-            .apply { if (forUpdate) forUpdate().skipLocked() }
-            .fetch()
-    }
+    ): Result<R> = baseQuery()
+        .and(where.invoke(table))
+        .apply { if (forUpdate) forUpdate().skipLocked() }
+        .fetch()
 
     /**
      * Fetches all records matching the provided condition, with support for ordering, seeking, and limiting results.
@@ -147,14 +135,12 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         seekValues: Array<out Any>,
         limit: Int,
         where: (T) -> Condition,
-    ): Result<R> {
-        return baseQuery()
-            .and(where.invoke(table))
-            .orderBy(*orderBy)
-            .seek(*seekValues)
-            .limit(limit)
-            .fetch()
-    }
+    ): Result<R> = baseQuery()
+        .and(where.invoke(table))
+        .orderBy(*orderBy)
+        .seek(*seekValues)
+        .limit(limit)
+        .fetch()
 
     /**
      * Creates a base query for the associated table with the base condition applied.

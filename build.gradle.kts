@@ -27,11 +27,11 @@ allprojects {
             targetExclude("${layout.buildDirectory}/**/*.kt")
             ktlint(libs.versions.ktlint.get()).setEditorConfigPath(rootProject.file(".editorconfig").path)
             toggleOffOn()
-            trimTrailingWhitespace()
         }
         kotlinGradle {
             target("*.gradle.kts")
-            ktlint(libs.versions.ktlint.get())
+            ktlint(libs.versions.ktlint.get()).setEditorConfigPath(rootProject.file(".editorconfig").path)
+            toggleOffOn()
         }
     }
 }
@@ -138,4 +138,12 @@ private fun Project.configureKotlinCompilation() {
             allWarningsAsErrors = true
         }
     }
+}
+
+tasks.assemble {
+    dependsOn("spotlessInstallGitPrePushHook")
+}
+
+tasks.named("spotlessInstallGitPrePushHook") {
+    onlyIf { !file(".git/hooks/pre-push").exists() }
 }

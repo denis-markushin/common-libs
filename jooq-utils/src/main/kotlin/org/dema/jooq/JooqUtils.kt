@@ -495,9 +495,7 @@ object JooqUtils {
      * @param rec The record containing the total rows field.
      * @return The total number of rows, or 0 if not available.
      */
-    private fun getTotalRows(rec: Record): Int {
-        return TOTAL_ROWS_FIELD[rec] ?: 0
-    }
+    private fun getTotalRows(rec: Record): Int = TOTAL_ROWS_FIELD[rec] ?: 0
 
     /**
      * Converts a Spring Data [Sort] object into a list of jOOQ [SortField] objects for the given table.
@@ -533,9 +531,7 @@ object JooqUtils {
     private fun getTableField(
         sortFieldName: String,
         table: Table<*>,
-    ): TableField<*, *> {
-        return table.field(sortFieldName) as TableField<*, *>
-    }
+    ): TableField<*, *> = table.field(sortFieldName) as TableField<*, *>
 
     /**
      * Converts a given [TableField] into a [SortField] with the specified sort direction.
@@ -547,7 +543,5 @@ object JooqUtils {
     private fun convertTableFieldToSortField(
         tableField: TableField<*, *>,
         sortDirection: Sort.Direction,
-    ): SortField<*> {
-        return if (sortDirection == Sort.Direction.ASC) tableField.asc() else tableField.desc()
-    }
+    ): SortField<*> = if (sortDirection == Sort.Direction.ASC) tableField.asc() else tableField.desc()
 }

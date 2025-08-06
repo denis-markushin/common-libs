@@ -26,13 +26,11 @@ import org.springframework.core.convert.ConversionService
 fun <T : Table<R>, R : UpdatableRecord<*>> AbstractRepository<T, R>.getAllBy(
     relayPageable: RelayPageable,
     where: Condition,
-): Result<R> {
-    return getAllBy(
-        orderBy = relayPageable.orderByClauses,
-        seekValues = relayPageable.seekValues,
-        limit = relayPageable.first + 1, // fetch one extra to detect hasNextPage in RecordsConnection
-    ) { where }
-}
+): Result<R> = getAllBy(
+    orderBy = relayPageable.orderByClauses,
+    seekValues = relayPageable.seekValues,
+    limit = relayPageable.first + 1, // fetch one extra to detect hasNextPage in RecordsConnection
+) { where }
 
 /**
  * Converts this list of records into a GraphQL [Connection] according to
@@ -87,6 +85,4 @@ private fun <T> emptyConnection(): Connection<T> {
  * @throws org.springframework.core.convert.ConversionFailedException if the conversion fails
  * @see ConversionService.convert
  */
-inline fun <reified T> ConversionService.convert(src: Any?): T? {
-    return src?.let { this.convert(src, T::class.java) }
-}
+inline fun <reified T> ConversionService.convert(src: Any?): T? = src?.let { this.convert(src, T::class.java) }

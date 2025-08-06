@@ -1,7 +1,7 @@
 package org.dema.graphql.dgs.utils
 
-import java.util.concurrent.ConcurrentHashMap
 import org.jooq.SortField
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * DSL marker annotation to restrict the scope of the order-by DSL.
@@ -58,8 +58,8 @@ object OrderByClausesMapping {
      * @return the array of sort fields registered for the key.
      * @throws IllegalStateException if no mapping was found for the key.
      */
-    fun getFields(key: Enum<*>): Array<out SortField<*>> =
-        mapping[key] ?: error("No mapping found for key: '${key::class.simpleName}.$key'")
+    fun getFields(key: Enum<*>): Array<out SortField<*>> = mapping[key]
+        ?: error("No mapping found for key: '${key::class.simpleName}.$key'")
 
     /**
      * Clears all registered mappings.

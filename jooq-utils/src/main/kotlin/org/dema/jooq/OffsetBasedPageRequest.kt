@@ -1,8 +1,8 @@
 package org.dema.jooq
 
-import java.io.Serializable
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
+import java.io.Serializable
 
 class OffsetBasedPageRequest(offset: Long, limit: Long, sort: Sort = Sort.unsorted()) :
     Pageable, Serializable {
@@ -32,28 +32,17 @@ class OffsetBasedPageRequest(offset: Long, limit: Long, sort: Sort = Sort.unsort
         this.sort = sort
     }
 
-    override fun getPageNumber(): Int {
-        return (offset / limit).toInt()
-    }
+    override fun getPageNumber(): Int = (offset / limit).toInt()
 
-    override fun getPageSize(): Int {
-        return limit.toInt()
-    }
+    override fun getPageSize(): Int = limit.toInt()
 
-    override fun getOffset(): Long {
-        return offset
-    }
+    override fun getOffset(): Long = offset
 
-    override fun getSort(): Sort {
-        return sort
-    }
+    override fun getSort(): Sort = sort
 
-    override fun next(): Pageable {
-        return OffsetBasedPageRequest((offset + pageSize).toInt().toLong(), pageSize.toLong(), sort)
-    }
+    override fun next(): Pageable = OffsetBasedPageRequest((offset + pageSize).toInt().toLong(), pageSize.toLong(), sort)
 
-    private fun previous(): OffsetBasedPageRequest {
-        return if (hasPrevious()) {
+    private fun previous(): OffsetBasedPageRequest = if (hasPrevious()) {
             OffsetBasedPageRequest(
                 (offset - pageSize).toInt().toLong(),
                 pageSize.toLong(),
@@ -62,21 +51,14 @@ class OffsetBasedPageRequest(offset: Long, limit: Long, sort: Sort = Sort.unsort
         } else {
             this
         }
-    }
 
-    override fun previousOrFirst(): Pageable {
-        return if (hasPrevious()) previous() else first()
-    }
+    override fun previousOrFirst(): Pageable = if (hasPrevious()) previous() else first()
 
-    override fun first(): Pageable {
-        return OffsetBasedPageRequest(0, pageSize.toLong(), sort)
-    }
+    override fun first(): Pageable = OffsetBasedPageRequest(0, pageSize.toLong(), sort)
 
     override fun withPage(pageNumber: Int): Pageable {
         TODO("Not yet implemented")
     }
 
-    override fun hasPrevious(): Boolean {
-        return offset > 0
-    }
+    override fun hasPrevious(): Boolean = offset > 0
 }
