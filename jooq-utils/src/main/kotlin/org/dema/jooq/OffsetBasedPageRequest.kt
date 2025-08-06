@@ -43,14 +43,14 @@ class OffsetBasedPageRequest(offset: Long, limit: Long, sort: Sort = Sort.unsort
     override fun next(): Pageable = OffsetBasedPageRequest((offset + pageSize).toInt().toLong(), pageSize.toLong(), sort)
 
     private fun previous(): OffsetBasedPageRequest = if (hasPrevious()) {
-            OffsetBasedPageRequest(
-                (offset - pageSize).toInt().toLong(),
-                pageSize.toLong(),
-                sort,
-            )
-        } else {
-            this
-        }
+        OffsetBasedPageRequest(
+            (offset - pageSize).toInt().toLong(),
+            pageSize.toLong(),
+            sort,
+        )
+    } else {
+        this
+    }
 
     override fun previousOrFirst(): Pageable = if (hasPrevious()) previous() else first()
 
