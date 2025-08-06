@@ -27,11 +27,9 @@ class LocalDateTimeScalar : Coercing<LocalDateTime, String> {
         dataFetcherResult: Any,
         graphQLContext: GraphQLContext,
         locale: Locale,
-    ): String {
-        return (dataFetcherResult as LocalDateTime)
+    ): String = (dataFetcherResult as LocalDateTime)
             .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
             ?: throw CoercingSerializeException("Expected LocalDateTime, but got: ${dataFetcherResult::class}")
-    }
 
     /**
      * Parses a [LocalDateTime] value provided by the client.
@@ -42,13 +40,11 @@ class LocalDateTimeScalar : Coercing<LocalDateTime, String> {
         input: Any,
         graphQLContext: GraphQLContext,
         locale: Locale,
-    ): LocalDateTime {
-        return try {
+    ): LocalDateTime = try {
             LocalDateTime.parse(input.toString(), DateTimeFormatter.ISO_DATE_TIME)
         } catch (_: Exception) {
             throw CoercingParseValueException("Invalid LocalDateTime input: $input")
         }
-    }
 
     /**
      * Parses a literal [LocalDateTime] value from the GraphQL AST.

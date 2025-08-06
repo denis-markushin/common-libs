@@ -1,12 +1,12 @@
 package org.dema.jooq.liquibase
 
-import java.io.File
-import java.util.concurrent.atomic.AtomicBoolean
 import liquibase.Liquibase
 import liquibase.database.jvm.JdbcConnection
 import liquibase.resource.DirectoryResourceAccessor
 import org.jooq.DSLContext
 import org.jooq.meta.postgres.PostgresDatabase
+import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 
 class LiquibasePostgresTcDatabase : PostgresDatabase() {
     companion object {
