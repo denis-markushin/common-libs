@@ -28,8 +28,9 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
     /**
      * The base condition to apply for queries.
      */
-    private val baseCondition: Condition = noCondition(),
+    protected val baseCondition: Condition = noCondition(),
 ) {
+
     @Autowired
     protected lateinit var dsl: DSLContext
 
