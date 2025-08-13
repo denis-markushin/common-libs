@@ -60,7 +60,8 @@ configure(subprojects.filterNot { it == project(":bom") }) {
 
         dependencies {
             // Apply the BOM to applicable subprojects.
-            "api"(platform(project(":bom")))
+            "compileOnly"(platform(project(":bom")))
+            "testImplementation"(platform(project(":bom")))
 
             "implementation"("org.springframework.boot:spring-boot-starter-web")
 
