@@ -151,12 +151,13 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
     protected fun baseQuery(): SelectConditionStep<R> = dsl.selectFrom(table).where(baseCondition)
 
     /**
-     * Combines multiple conditions using the AND operator.
+     * Combines multiple conditions using the AND operator,
+     * including `baseCondition`.
      *
      * @param where Array of conditions to combine.
      * @return A single combined condition.
      */
-    protected fun foldConditions(where: Array<out (T) -> Condition>) = where.fold(noCondition()) { acc, func -> acc.and(func(table)) }
+    protected fun foldConditions(where: Array<out (T) -> Condition>) = where.fold(baseCondition) { acc, func -> acc.and(func(table)) }
 
     /**
      * Represents the result of an upsert operation.
