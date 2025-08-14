@@ -8,6 +8,7 @@ import org.jooq.meta.postgres.PostgresDatabase
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
+@Suppress("DEPRECATION")
 class LiquibasePostgresTcDatabase : PostgresDatabase() {
     companion object {
         private var alreadyUpdated: AtomicBoolean = AtomicBoolean(false)
