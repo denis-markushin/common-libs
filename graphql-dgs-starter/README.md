@@ -122,26 +122,43 @@ fun users(
 
 @Service
 class UsersService(
-  private val cs: ConversionService,
-  private val usersRepo: UsersRepo,
+    private val cs: ConversionService,
+    private val usersRepo: UsersRepo,
 ) {
 
-  init {
-    OrderByClausesMapping.register {
-      key(UsersSort.CREATED_AT_DESC).fields(USERS.CREATED_AT.desc())
+    init {
+        OrderByClausesMapping.register {
+            key(UsersSort.CREATED_AT_DESC).fields(USERS.CREATED_AT.desc())
+        }
     }
-  }
 
-  fun getAll(
-    relayPageable: RelayPageable,
-    filter: UsersFilter?,
-  ): Connection<User> {
-    val condition: Condition = cs.convert(filter) ?: noCondition()
-    return usersRepo
-      .getAllBy(relayPageable = relayPageable, where = condition)
-      .toConnection(relayPageable)
-      .map(cs::convert)
-  }
+    fun getAll(
+        relayPageable: RelayPageable,
+        filter: UsersFilter?,
+    ): Connection<User> {
+        val condition: Condition = cs.convert(filter) ?: noCondition()
+        return usersRepo
+            .getAllBy(relayPageable = relayPageable, where = condition)
+            .toConnection(relayPageable)
+            .map(cs::convert)
+    }
+}
+```
+
+## AbstractBatchLoader for DGS / DataLoader
+
+A lightweight base class for **mapped** DataLoader batch loading in Netflix DGS.
+It delegates the work to a function you provide and runs it asynchronously on a supplied `Executor`.
+
+```kotlin
+abstract class AbstractBatchLoader<K, V>(
+    private val executor: Executor,
+    private val loaderFn: (Set<K>) -> Map<K, V>
+) : MappedBatchLoader<K, V> {
+
+    override fun load(keys: Set<K>): CompletionStage<Map<K, V>> =
+        if (keys.isEmpty()) CompletableFuture.completedFuture(emptyMap())
+        else CompletableFuture.supplyAsync({ loaderFn(keys) }, executor)
 }
 ```
 
