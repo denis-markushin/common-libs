@@ -12,6 +12,12 @@ APIs for repositories.
 
 ## Usage
 
+### Add dependency:
+
+```kotlin
+implementation("io.github.denis-markushin:jooq-utils:x.x.x")
+```
+
 ### Repository
 
 ```kotlin

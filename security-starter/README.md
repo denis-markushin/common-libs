@@ -9,7 +9,7 @@ roles from the `X-Roles` header.
 
 1. Add dependency:
    ```kotlin
-   implementation("org.dema:security-starter:x.x.x")
+   implementation("io.github.denis-markushin:security-starter:x.x.x")
    ```
 2. Send requests with the `X-Roles` header during local development:
    ```
