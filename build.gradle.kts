@@ -63,8 +63,6 @@ configure(subprojects.filterNot { it == project(":bom") }) {
             // Apply the BOM to applicable subprojects.
             "implementation"(platform(project(":bom")))
 
-            "implementation"("org.springframework.boot:spring-boot-starter-web")
-
             // Test libs
             "testImplementation"("org.springframework.boot:spring-boot-starter-test") {
                 exclude(group = "org.mockito")
