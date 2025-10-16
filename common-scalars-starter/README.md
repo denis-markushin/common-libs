@@ -1,7 +1,6 @@
 # 🧩 common-scalars-starter
 
-A **Spring Boot GraphQL starter** that provides several useful scalar types, including support for
-the [Extended Scalars](https://github.com/graphql-java/graphql-java-extended-scalars) library.
+A **Spring Boot GraphQL starter** that provides several useful scalar types.
 
 ---
 
