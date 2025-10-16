@@ -33,9 +33,13 @@ dependencies {
 To enable support for **Zulu (`UTC`) format** in `LocalDateTime` serialization, add the following to your `application.yml`:
 
 ```yaml
-zulu:
-  format:
-    enabled: true
+dgs:
+  graphql:
+    dema:
+      scalars:
+        enabled: true
+        localdatetime:
+          format: zulu
 ```
 
 ---
