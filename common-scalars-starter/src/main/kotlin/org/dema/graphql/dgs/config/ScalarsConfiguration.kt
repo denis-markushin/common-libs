@@ -10,10 +10,11 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 
 @Configuration
+@ConditionalOnProperty(prefix = "dgs.graphql.dema.scalars", name = ["enabled"], havingValue = "true")
 class ScalarsConfiguration {
 
     @Bean
-    @ConditionalOnProperty("date.zulu.format.enabled", havingValue = "true")
+    @ConditionalOnProperty(prefix = "dgs.graphql.dema.scalars.localdatetime", name = ["format"], havingValue = "zulu")
     fun zuluLocalDateTimeScalar(): ZuluLocalDateTimeScalar = ZuluLocalDateTimeScalar()
 
     @Bean
