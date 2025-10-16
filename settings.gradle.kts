@@ -8,6 +8,7 @@ include(
     "graphql-dgs-starter",
     "common-lib",
     "test-common",
+    "common-scalars-starter"
 )
 
 pluginManagement {
