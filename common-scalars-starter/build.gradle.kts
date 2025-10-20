@@ -1,4 +1,4 @@
-description = "A Spring Boot GraphQL starter that provides several useful scalar types."
+description = "A Spring Boot GraphQL starter that provides useful scalar types."
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
