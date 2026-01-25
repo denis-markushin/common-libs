@@ -1,41 +1,12 @@
-import com.diffplug.gradle.spotless.SpotlessExtension
 import com.diffplug.spotless.LineEnding
 import com.vanniktech.maven.publish.MavenPublishBaseExtension
-import org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-
-group = property("group") as String
-version = property("version") as String
 
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.spring) apply false
-    alias(libs.plugins.spotless) apply true
     alias(libs.plugins.vanniktechMavenPublish) apply false
-}
-
-allprojects {
-    group = rootProject.group
-    version = rootProject.version
-
-    apply {
-        plugin(rootProject.libs.plugins.spotless.get().pluginId)
-    }
-
-    configure<SpotlessExtension> {
-        lineEndings = LineEnding.GIT_ATTRIBUTES_FAST_ALLSAME
-        kotlin {
-            target("**/*.kt")
-            targetExclude("${layout.buildDirectory}/**/*.kt")
-            ktlint(libs.versions.ktlint.get()).setEditorConfigPath(rootProject.file(".editorconfig").path)
-            toggleOffOn()
-        }
-        kotlinGradle {
-            target("*.gradle.kts")
-            ktlint(libs.versions.ktlint.get()).setEditorConfigPath(rootProject.file(".editorconfig").path)
-            toggleOffOn()
-        }
-    }
+    alias(libs.plugins.spotless) apply true
 }
 
 subprojects {
@@ -73,7 +44,7 @@ configure(subprojects.filterNot { it == project(":bom") }) {
         }
     }
 
-    configureKotlinCompilation()
+    configureCompilation()
 
     tasks.withType<Test> {
         useJUnitPlatform()
@@ -126,12 +97,15 @@ fun Project.configurePublishing() {
     }
 }
 
-private fun Project.configureKotlinCompilation() {
-    extensions.configure<KotlinJvmProjectExtension> {
-        jvmToolchain {
-            languageVersion.set(JavaLanguageVersion.of(17))
+private fun Project.configureCompilation() {
+    val javaVersion = rootProject.libs.versions.java.get()
+
+    extensions.configure<JavaPluginExtension> {
+        toolchain {
+            languageVersion.set(JavaLanguageVersion.of(javaVersion))
         }
     }
+
     tasks.withType<KotlinCompile> {
         kotlinOptions {
             freeCompilerArgs = listOf("-Xjsr305=strict")
@@ -150,3 +124,24 @@ tasks.named("spotlessInstallGitPrePushHook") {
 }
 
 tasks.withType<GenerateModuleMetadata>().configureEach { enabled = false }
+
+tasks.wrapper {
+    gradleVersion = libs.versions.gradle.get()
+    distributionType = Wrapper.DistributionType.BIN
+    distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-bin.zip"
+}
+
+spotless {
+    lineEndings = LineEnding.GIT_ATTRIBUTES_FAST_ALLSAME
+    kotlin {
+        target("**/src/**/*.kt")
+        targetExclude("${layout.buildDirectory}/**/*.kt")
+        ktlint().setEditorConfigPath(project.file(".editorconfig").path)
+        toggleOffOn()
+    }
+    kotlinGradle {
+        target("*.gradle.kts")
+        ktlint().setEditorConfigPath(project.file(".editorconfig").path)
+        toggleOffOn()
+    }
+}

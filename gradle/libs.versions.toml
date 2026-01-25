@@ -1,6 +1,7 @@
 [versions]
+java = "17"
 kotlin = "1.9.24"
-spotless = "7.2.1"
+gradle = "8.14"
 
 # BOMs
 spring-boot = "3.4.9"
@@ -36,5 +37,5 @@ springmock = { module = "com.ninja-squad:springmockk", version.ref = "springMock
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
-spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+spotless = { id = "com.diffplug.spotless", version = "7.2.1" }
 vanniktechMavenPublish = { id = "com.vanniktech.maven.publish", version = "0.33.0" }
