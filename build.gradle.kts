@@ -6,7 +6,8 @@ plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.spring) apply false
     alias(libs.plugins.vanniktechMavenPublish) apply false
-    alias(libs.plugins.spotless) apply true
+    alias(libs.plugins.spotless)
+    alias(libs.plugins.vercraft)
 }
 
 subprojects {
@@ -135,7 +136,6 @@ spotless {
     lineEndings = LineEnding.GIT_ATTRIBUTES_FAST_ALLSAME
     kotlin {
         target("**/src/**/*.kt")
-        targetExclude("${layout.buildDirectory}/**/*.kt")
         ktlint().setEditorConfigPath(project.file(".editorconfig").path)
         toggleOffOn()
     }

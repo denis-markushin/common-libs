@@ -25,7 +25,7 @@ import java.util.concurrent.Executor
  */
 abstract class AbstractBatchLoader<K, V>(
     private val executor: Executor,
-    private val loaderFn: (Set<K>) -> Map<K, V>
+    private val loaderFn: (Set<K>) -> Map<K, V>,
 ) : MappedBatchLoader<K, V> {
 
     /**

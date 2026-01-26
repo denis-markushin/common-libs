@@ -1,5 +1,3 @@
-rootProject.name = "common-libs"
-
 include(
     "bom",
     "jooq-utils",
@@ -8,11 +6,12 @@ include(
     "graphql-dgs-starter",
     "common-lib",
     "test-common",
-    "common-scalars-starter"
+    "common-scalars-starter",
 )
 
 pluginManagement {
     repositories {
+        mavenLocal()
         gradlePluginPortal()
     }
 }
