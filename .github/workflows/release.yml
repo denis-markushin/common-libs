@@ -38,4 +38,5 @@ jobs:
         run: |
           ./gradlew makeRelease \
             -PreleaseType=${{ github.event.inputs.release_type }} \
-            -PdefaultMainBranch=${{ github.event.inputs.target_branch }}
+            -PdefaultMainBranch=${{ github.event.inputs.target_branch }} \
+            --stacktrace
