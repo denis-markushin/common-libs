@@ -4,8 +4,12 @@ import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 import java.io.Serializable
 
-class OffsetBasedPageRequest(offset: Long, limit: Long, sort: Sort = Sort.unsorted()) :
-    Pageable, Serializable {
+class OffsetBasedPageRequest(
+    offset: Long,
+    limit: Long,
+    sort: Sort = Sort.unsorted(),
+) : Pageable,
+    Serializable {
     private val limit: Long
     private val offset: Long
     private val sort: Sort

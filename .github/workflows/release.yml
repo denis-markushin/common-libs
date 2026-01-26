@@ -1,0 +1,41 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Release type'
+        required: true
+        type: choice
+        options:
+          - 'PATCH'
+          - 'MINOR'
+          - 'MAJOR'
+        default: 'PATCH'
+      target_branch:
+        description: 'Target branch'
+        required: true
+        default: 'main'
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PAT_FOR_WORKFLOW_TRIGGER }}
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '21'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run Vercraft Plugin and Publish Release
+        run: |
+          ./gradlew makeRelease \
+            -PreleaseType=${{ github.event.inputs.release_type }} \
+            -PdefaultMainBranch=${{ github.event.inputs.target_branch }}

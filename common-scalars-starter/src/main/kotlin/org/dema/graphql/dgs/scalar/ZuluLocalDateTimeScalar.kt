@@ -18,7 +18,7 @@ class ZuluLocalDateTimeScalar : LocalDateTimeScalar {
     override fun serialize(
         dataFetcherResult: Any,
         graphQLContext: GraphQLContext,
-        locale: Locale
+        locale: Locale,
     ): String = (dataFetcherResult as LocalDateTime)
         .format(DateUtils.ZULU_FORMATTER)
         ?: throw CoercingSerializeException("Expected a LocalDateTime, but got: '${dataFetcherResult::class}'")
@@ -37,7 +37,7 @@ class ZuluLocalDateTimeScalar : LocalDateTimeScalar {
         input: Value<*>,
         variables: CoercedVariables,
         graphQLContext: GraphQLContext,
-        locale: Locale
+        locale: Locale,
     ): LocalDateTime {
         if (input is StringValue) {
             try {

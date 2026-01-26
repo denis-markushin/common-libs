@@ -41,7 +41,9 @@ object OrderByClausesMapping {
     }
 
     @OrderByDsl
-    class KeyScope(private val key: Enum<*>) {
+    class KeyScope(
+        private val key: Enum<*>,
+    ) {
         /** Registers the provided [fields] for the current [key]. */
         fun fields(vararg fields: SortField<*>) {
             val prev = mapping.putIfAbsent(key, fields)

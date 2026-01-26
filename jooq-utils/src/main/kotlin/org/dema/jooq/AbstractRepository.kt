@@ -165,5 +165,8 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
      * @property record The record that was either inserted or updated.
      * @property isCreated A boolean indicating if the record was newly created (true) or updated (false).
      */
-    data class UpsertResult<R : UpdatableRecord<*>>(val record: R, val isCreated: Boolean)
+    data class UpsertResult<R : UpdatableRecord<*>>(
+        val record: R,
+        val isCreated: Boolean,
+    )
 }
