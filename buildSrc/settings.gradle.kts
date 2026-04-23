@@ -1,24 +1,20 @@
-include(
-    "bom",
-    "jooq-utils",
-    "security-starter",
-    "jooq-liquibase-testcontainer",
-    "graphql-dgs-starter",
-    "test-common",
-    "common-scalars-starter",
-    "service-core",
-)
-
 pluginManagement {
     repositories {
         mavenLocal()
         gradlePluginPortal()
+        mavenCentral()
     }
 }
 
 dependencyResolutionManagement {
     repositories {
         mavenLocal()
+        gradlePluginPortal()
         mavenCentral()
+    }
+    versionCatalogs {
+        create("libs") {
+            from(files("../gradle/libs.versions.toml"))
+        }
     }
 }

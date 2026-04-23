@@ -1,13 +1,18 @@
 [versions]
-java = "21"
-kotlin = "1.9.24"
-gradle = "8.14"
+gradle = "9.1.0"
+
+dema-plugins = "2026-04-27-platfromp-4-74fdd"
 
 # BOMs
 spring-boot = "3.4.9"
 spring-cloud = "2024.0.2"
 netflix-dgs = "10.1.2"
-junit = "5.10.2"
+
+# Third party libs
+kotlin-logging = "7.0.5"
+
+# Spring Boot
+spring-doc = "2.7.0"
 
 # Test
 assertk = "0.28.1"
@@ -15,18 +20,19 @@ kotest = "5.9.0"
 mockk = "1.13.8"
 springMockk = "4.0.2"
 
-# Plugins
-ktlint = "1.7.1"
-
 [libraries]
 # BOMs
 spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
 spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
 netflix-dgs-dependencies = { module = "com.netflix.graphql.dgs:graphql-dgs-platform-dependencies", version.ref = "netflix-dgs" }
-junit-dependecies = { module = "org.junit:junit-bom", version.ref = "junit" }
 
 # Third party libs
+kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "kotlin-logging" }
 jaywayJsonPath = { module = "com.jayway.jsonpath:json-path", version = "2.9.0" }
+
+# Sring Boot
+spring-doc = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "spring-doc" }
+logbook = { module = "org.zalando:logbook-spring-boot-starter", version = "3.12.3" }
 
 # Test libs
 assertk = { module = "com.willowtreeapps.assertk:assertk-jvm", version.ref = "assertk" }
@@ -35,8 +41,7 @@ mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 springmock = { module = "com.ninja-squad:springmockk", version.ref = "springMockk" }
 
 [plugins]
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
-spotless = { id = "com.diffplug.spotless", version = "7.2.1" }
-vanniktechMavenPublish = { id = "com.vanniktech.maven.publish", version = "0.33.0" }
-vercraft = { id = "com.akuleshov7.vercraft.plugin-gradle", version = "0.6.0" }
+vanniktechMavenPublish = { id = "com.vanniktech.maven.publish", version = "0.36.0" }
+vercraft = { id = "com.akuleshov7.vercraft.plugin-gradle", version = "0.7.2" }
+dema-spotless = { id = "io.github.denis-markushin.spotless", version.ref = "dema-plugins" }
+dema-kotlinLibrary = { id = "io.github.denis-markushin.kotlin-library", version.ref = "dema-plugins" }

@@ -1,0 +1,4 @@
+org.dema.servicecore.ServiceCorePropertiesAutoConfiguration
+org.dema.servicecore.DemaJacksonAutoConfiguration
+org.dema.servicecore.ActuatorAutoConfiguration
+org.dema.servicecore.DemaLogbookConfiguration
