@@ -1,4 +1,4 @@
-package org.dema.common
+package org.dema.servicecore.extension
 
 import java.util.UUID
 

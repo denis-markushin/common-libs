@@ -1,5 +1,8 @@
-!**/src/main/**
-!**/src/test/**
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
 
 ### STS ###
 .apt_generated
@@ -9,13 +12,18 @@
 .settings
 .springBeans
 .sts4-cache
+bin/
+!**/src/main/**/bin/
+!**/src/test/**/bin/
 
 ### IntelliJ IDEA ###
-/.idea/
+.idea
 *.iws
 *.iml
 *.ipr
 out/
+!**/src/main/**/out/
+!**/src/test/**/out/
 
 ### NetBeans ###
 /nbproject/private/
@@ -27,10 +35,5 @@ out/
 ### VS Code ###
 .vscode/
 
-### Gradle ###
-build/
-/.gradle/
-!gradle/wrapper/gradle-wrapper.jar
-
-### Mac ###
-*.DS_STORE
+### Kotlin ###
+.kotlin
