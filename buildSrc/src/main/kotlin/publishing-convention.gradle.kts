@@ -5,6 +5,10 @@ plugins {
 mavenPublishing {
     coordinates(project.group.toString(), project.name, project.version.toString())
 
+    if (providers.environmentVariable("ORG_GRADLE_PROJECT_signingInMemoryKey").isPresent) {
+        signAllPublications()
+    }
+
     pom {
         name.set(project.name)
         description.set(project.description)

@@ -1,0 +1,46 @@
+name: Publish Plugin to Portal
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-plugin-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gradle:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.head_commit.message, 'ci skip') }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+      - name: Resolve release branch from tag
+        id: vercraft
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          MAJOR_MINOR="${VERSION%.*}"
+          echo "branch=release/${MAJOR_MINOR}.x" >> "$GITHUB_OUTPUT"
+      - name: Publish to Maven Central
+        if: success()
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.OSSRH_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.OSSRH_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.GPG_PRIVATE_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.GPG_PRIVATE_PASSWORD }}
+          CI_COMMIT_REF_NAME: ${{ steps.vercraft.outputs.branch }}
+        run: ./gradlew publish
