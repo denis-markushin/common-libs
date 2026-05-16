@@ -4,6 +4,11 @@ plugins {
 
 mavenPublishing {
     coordinates(project.group.toString(), project.name, project.version.toString())
+    publishToMavenCentral(automaticRelease = true)
+
+    if (providers.environmentVariable("ORG_GRADLE_PROJECT_signingInMemoryKey").isPresent) {
+        signAllPublications()
+    }
 
     pom {
         name.set(project.name)

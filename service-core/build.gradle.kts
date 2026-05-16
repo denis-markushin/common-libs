@@ -1,3 +1,5 @@
+description = "Spring Boot core module with Jetty, validation, Jackson Kotlin, SpringDoc and logging defaults"
+
 plugins {
     kotlin("kapt")
 }

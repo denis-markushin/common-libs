@@ -1,7 +1,7 @@
 [versions]
 gradle = "9.1.0"
 
-dema-plugins = "2026-04-27-platfromp-4-74fdd"
+dema-plugins = "0.2.0"
 
 # BOMs
 spring-boot = "3.4.9"
@@ -42,6 +42,6 @@ springmock = { module = "com.ninja-squad:springmockk", version.ref = "springMock
 
 [plugins]
 vanniktechMavenPublish = { id = "com.vanniktech.maven.publish", version = "0.36.0" }
-vercraft = { id = "com.akuleshov7.vercraft.plugin-gradle", version = "0.7.2" }
+vercraft = { id = "com.akuleshov7.vercraft.plugin-gradle", version = "0.8.0" }
 dema-spotless = { id = "io.github.denis-markushin.spotless", version.ref = "dema-plugins" }
 dema-kotlinLibrary = { id = "io.github.denis-markushin.kotlin-library", version.ref = "dema-plugins" }
