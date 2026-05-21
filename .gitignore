@@ -37,3 +37,7 @@ out/
 
 ### Kotlin ###
 .kotlin
+
+### Plugins ###
+/amplicode.xml
+/.env
