@@ -1,0 +1,37 @@
+"Information about pagination in a connection."
+type PageInfo @shareable {
+    "When paginating forwards, the cursor to continue."
+    endCursor: String
+    "When paginating forwards, are there more items?"
+    hasNextPage: Boolean!
+    "When paginating backwards, are there more items?"
+    hasPreviousPage: Boolean!
+    "When paginating backwards, the cursor to continue."
+    startCursor: String
+}
+
+"Relay-compliant object with a globally unique identifier and audit timestamps."
+interface Node {
+    "Globally unique identifier of the record."
+    id: UUID!
+    "Timestamp when the record was created."
+    createdAt: LocalDateTime!
+    "Timestamp when the record was last updated."
+    updatedAt: LocalDateTime!
+}
+
+"Common payload contract for mutations returning a single record and an optional typed error."
+interface MutationResult {
+    "Identifier of the affected record, if available."
+    recordId: UUID
+    "The affected record, if available."
+    record: Node
+    "Typed error returned when the mutation fails."
+    error: ErrorInterface
+}
+
+"Generic status enum for operations that return a coarse-grained outcome."
+enum CommonResultStatus {
+    SUCCESS
+    FAILED
+}

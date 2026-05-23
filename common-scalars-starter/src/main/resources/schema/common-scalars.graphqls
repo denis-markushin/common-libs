@@ -1,0 +1,5 @@
+"ISO-8601 LocalDateTime (Zulu by default — configurable via dgs.graphql.dema.scalars.localdatetime.format)"
+scalar LocalDateTime
+
+"Base64-encoded binary payload"
+scalar Base64

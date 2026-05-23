@@ -1,0 +1,8 @@
+"RFC 4122 UUID"
+scalar UUID
+
+"Arbitrary precision decimal number"
+scalar BigDecimal
+
+"Long integer (64-bit signed)"
+scalar Long

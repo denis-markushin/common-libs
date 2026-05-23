@@ -1,0 +1,32 @@
+"""
+Base interface for typed mutation errors.
+If the client selects the `error` field in a mutation payload, the resolver returns a typed error.
+Otherwise, the error is reported via the top-level `errors[]` array.
+"""
+interface ErrorInterface {
+    "Human-readable error message intended for developers or UI display."
+    message: String!
+}
+
+"Returned when the requested entity does not exist."
+type NotFoundError implements ErrorInterface @shareable {
+    message: String!
+    "Identifier of the entity that was not found."
+    entityId: UUID
+    "Name of the entity type that was not found."
+    entityType: String
+}
+
+"Returned when input data fails validation."
+type ValidationError implements ErrorInterface @shareable {
+    message: String!
+    "Path to the invalid field within the input object (for example, 'input.title')."
+    path: String
+    "Value that failed validation, serialized as a JSON string."
+    value: String
+}
+
+"Returned for any unclassified runtime error."
+type RuntimeError implements ErrorInterface @shareable {
+    message: String!
+}
