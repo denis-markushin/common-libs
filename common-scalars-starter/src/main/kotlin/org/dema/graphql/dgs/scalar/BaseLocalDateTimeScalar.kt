@@ -66,4 +66,13 @@ class BaseLocalDateTimeScalar : LocalDateTimeScalar {
         }
         throw CoercingParseLiteralException("Expected AST type 'StringValue' but was: ${input::class}")
     }
+
+    /**
+     * Converts a [LocalDateTime] value into a [StringValue] literal in ISO-8601 format.
+     */
+    override fun valueToLiteral(
+        input: Any,
+        graphQLContext: GraphQLContext,
+        locale: Locale,
+    ): Value<*> = StringValue.of((input as LocalDateTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
 }
