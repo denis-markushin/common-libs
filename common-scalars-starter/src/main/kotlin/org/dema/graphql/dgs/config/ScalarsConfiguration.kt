@@ -18,7 +18,7 @@ class ScalarsConfiguration {
         prefix = "dgs.graphql.dema.scalars.localdatetime",
         name = ["format"],
         havingValue = "zulu",
-        matchIfMissing = true
+        matchIfMissing = true,
     )
     fun zuluLocalDateTimeScalar(): ZuluLocalDateTimeScalar = ZuluLocalDateTimeScalar()
 

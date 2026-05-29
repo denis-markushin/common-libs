@@ -9,7 +9,7 @@ class DemaLogbookEnvironmentPostProcessor : EnvironmentPostProcessor {
 
     override fun postProcessEnvironment(
         environment: ConfigurableEnvironment,
-        application: SpringApplication
+        application: SpringApplication,
     ) {
         val logbookEnabled = environment.getProperty("logbook.enabled", Boolean::class.java, true)
         if (!logbookEnabled) return
