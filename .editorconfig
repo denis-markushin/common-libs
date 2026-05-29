@@ -9,6 +9,14 @@ insert_final_newline = true
 trim_trailing_whitespace = true
 max_line_length = 140
 
+[{*.yml,*.yaml}]
+indent_size = 2
+ij_yaml_keep_indents_on_empty_lines = false
+ij_yaml_keep_line_breaks = true
+
+[*.md]
+indent_size = 2
+
 [{*.kt,*.kts}]
 ij_kotlin_code_style_defaults = KOTLIN_OFFICIAL
 
@@ -26,7 +34,6 @@ ktlint_standard_blank-line-before-declaration = disabled
 ktlint_standard_blank-line-between-when-conditions = disabled
 ktlint_standard_chain-method-continuation = disabled
 ktlint_standard_chain-wrapping = disabled
-ktlint_standard_class-signature = disabled
 ktlint_standard_condition-wrapping = disabled
 ktlint_standard_function-literal = disabled
 ktlint_standard_function-naming = disabled
@@ -52,12 +59,5 @@ ktlint_standard_spacing-between-declarations-with-annotations = disabled
 ktlint_standard_spacing-between-declarations-with-comments = disabled
 ktlint_standard_statement-wrapping = disabled
 ktlint_standard_string-template-indent = disabled
-ktlint_standard_trailing-comma-on-call-site = disabled
-ktlint_standard_trailing-comma-on-declaration-site = disabled
 ktlint_standard_try-catch-finally-spacing = disabled
 ktlint_standard_comment-wrapping = disabled
-
-[{*.yml,*.yaml}]
-indent_size = 2
-ij_yaml_keep_indents_on_empty_lines = false
-ij_yaml_keep_line_breaks = true
