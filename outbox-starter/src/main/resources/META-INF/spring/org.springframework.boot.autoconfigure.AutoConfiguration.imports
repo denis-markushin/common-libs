@@ -1,0 +1,2 @@
+org.dema.outbox.OutboxLiquibaseAutoConfiguration
+org.dema.outbox.OutboxAutoConfiguration

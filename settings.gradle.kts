@@ -7,6 +7,7 @@ include(
     "test-common",
     "common-scalars-starter",
     "service-core",
+    "outbox-starter",
 )
 
 pluginManagement {
