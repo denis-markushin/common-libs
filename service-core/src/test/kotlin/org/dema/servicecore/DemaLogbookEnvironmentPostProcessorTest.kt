@@ -29,7 +29,7 @@ class DemaLogbookEnvironmentPostProcessorTest {
     fun `adds logbook logging trace property when logbook is explicitly enabled`() {
         val environment = StandardEnvironment()
         environment.propertySources.addFirst(
-            MapPropertySource("test", mapOf("logbook.enabled" to "true"))
+            MapPropertySource("test", mapOf("logbook.enabled" to "true")),
         )
 
         processor.postProcessEnvironment(environment, application)
@@ -43,7 +43,7 @@ class DemaLogbookEnvironmentPostProcessorTest {
     fun `does not add logbook logging property when logbook is disabled`() {
         val environment = StandardEnvironment()
         environment.propertySources.addFirst(
-            MapPropertySource("test", mapOf("logbook.enabled" to "false"))
+            MapPropertySource("test", mapOf("logbook.enabled" to "false")),
         )
 
         processor.postProcessEnvironment(environment, application)

@@ -22,7 +22,7 @@ class DemaJacksonAutoConfigurationTest {
             AutoConfigurations.of(
                 DemaJacksonAutoConfiguration::class.java,
                 JacksonAutoConfiguration::class.java,
-            )
+            ),
         )
 
     @Test

@@ -51,7 +51,7 @@ class DemaLogbookConfigurationTest {
                     JacksonAutoConfiguration::class.java,
                     DemaLogbookConfiguration::class.java,
                     LogbookAutoConfiguration::class.java,
-                )
+                ),
             )
             .run { ctx ->
                 assertThat(ctx.startupFailure).isNull()
@@ -66,7 +66,7 @@ class DemaLogbookConfigurationTest {
                     JacksonAutoConfiguration::class.java,
                     DemaLogbookConfiguration::class.java,
                     LogbookAutoConfiguration::class.java,
-                )
+                ),
             )
             .withPropertyValues("logbook.predicate.include[0].path=/api/**")
             .run { ctx ->
