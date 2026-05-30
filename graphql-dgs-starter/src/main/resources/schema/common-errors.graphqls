@@ -30,3 +30,29 @@ type ValidationError implements ErrorInterface @shareable {
 type RuntimeError implements ErrorInterface @shareable {
     message: String!
 }
+
+"Returned when operation conflicts with current state."
+type ConflictError implements ErrorInterface @shareable {
+    message: String!
+    entityType: String
+    entityId: ID
+    "Short machine-readable code, e.g. ALREADY_ASSIGNED, STATE_LOCKED."
+    reason: String
+}
+
+"Returned when caller is not authenticated."
+type UnauthorizedError implements ErrorInterface @shareable {
+    message: String!
+}
+
+"Returned when caller lacks permission for the operation."
+type ForbiddenError implements ErrorInterface @shareable {
+    message: String!
+}
+
+"Returned when the service cannot fulfil the request right now (transient)."
+type ServiceUnavailableError implements ErrorInterface @shareable {
+    message: String!
+    "Suggested retry-after delay in seconds, if known."
+    retryAfterSeconds: Int
+}

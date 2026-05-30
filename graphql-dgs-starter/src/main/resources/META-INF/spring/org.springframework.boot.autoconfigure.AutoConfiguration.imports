@@ -1,0 +1,3 @@
+org.dema.graphql.dgs.autoconfigure.GraphQLErrorAutoConfiguration
+org.dema.graphql.dgs.autoconfigure.SpringSecurityErrorAutoConfiguration
+org.dema.graphql.dgs.autoconfigure.ErrorInterfaceJacksonAutoConfiguration
