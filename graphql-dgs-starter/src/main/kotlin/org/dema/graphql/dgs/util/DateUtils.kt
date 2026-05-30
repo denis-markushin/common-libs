@@ -1,4 +1,4 @@
-package org.dema.graphql.dgs.utils
+package org.dema.graphql.dgs.util
 
 import java.time.Instant
 import java.time.LocalDateTime
