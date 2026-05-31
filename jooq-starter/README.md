@@ -1,21 +1,29 @@
-# jooq-utils
+# jooq-starter
 
-Utility classes for integrating jOOQ with Spring Data.
-They simplify mapping jOOQ queries to `Page` objects and provide helper
-APIs for repositories.
+Spring Boot starter for jOOQ. Provides:
 
-## Features
-
-- `AbstractRepository` – base repository with CRUD utilities and upsert helpers.
-- `JooqUtils` – pagination helpers that compute metadata in a single database roundtrip.
-- `OffsetBasedPageRequest` – Spring `Pageable` implementation based on offset/limit.
+- `AbstractRepository` — base repository with CRUD utilities and upsert helpers.
+- `JooqUtils` — pagination helpers that compute metadata in a single database roundtrip.
+- `OffsetBasedPageRequest` — Spring `Pageable` implementation based on offset/limit.
+- `TimestampsRecordListener` — auto-populates `created_at` / `updated_at` columns on `UpdatableRecord.store()`.
 
 ## Usage
 
-### Add dependency:
+### Add dependency
 
 ```kotlin
-implementation("io.github.denis-markushin:jooq-utils:x.x.x")
+implementation("io.github.denis-markushin:jooq-starter:x.x.x")
+```
+
+The timestamps listener is enabled by default. Disable or reconfigure via properties:
+
+```yaml
+dema:
+  jooq:
+    timestamps:
+      enabled: true                       # default
+      created-at-column: created_at       # default
+      updated-at-column: updated_at       # default
 ```
 
 ### Repository

@@ -1,6 +1,6 @@
 include(
     "bom",
-    "jooq-utils",
+    "jooq-starter",
     "security-starter",
     "jooq-liquibase-testcontainer",
     "graphql-dgs-starter",
