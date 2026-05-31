@@ -1,7 +1,7 @@
 description = "Spring Boot starter that simplifies building GraphQL APIs with Jooq and DGS Framework"
 
 dependencies {
-    implementation(project(":jooq-utils"))
+    implementation(project(":jooq-starter"))
     implementation(libs.kotlin.logging)
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.springframework.boot:spring-boot-starter")
