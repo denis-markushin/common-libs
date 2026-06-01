@@ -26,7 +26,7 @@ class TimestampsRecordListenerTest {
     )
 
     @Test
-    fun `insertStart sets createdAt to clock now when field is null`() {
+    fun `storeStart sets createdAt to clock now when field is null`() {
         val record = mockk<UpdatableRecord<*>>(relaxed = true)
         val createdField = mockField("created_at")
         val updatedField = mockField("updated_at")
@@ -35,13 +35,13 @@ class TimestampsRecordListenerTest {
         every { record.get(createdField) } returns null
         val ctx = mockk<RecordContext> { every { record() } returns record }
 
-        listener.insertStart(ctx)
+        listener.storeStart(ctx)
 
         verify { record.set(createdField, expectedNow) }
     }
 
     @Test
-    fun `insertStart does not overwrite createdAt when field already has value`() {
+    fun `storeStart does not overwrite createdAt when field already has value`() {
         val record = mockk<UpdatableRecord<*>>(relaxed = true)
         val createdField = mockField("created_at")
         val updatedField = mockField("updated_at")
@@ -51,13 +51,13 @@ class TimestampsRecordListenerTest {
         every { record.get(createdField) } returns existing
         val ctx = mockk<RecordContext> { every { record() } returns record }
 
-        listener.insertStart(ctx)
+        listener.storeStart(ctx)
 
         verify(exactly = 0) { record.set(createdField, any<LocalDateTime>()) }
     }
 
     @Test
-    fun `insertStart sets updatedAt unconditionally`() {
+    fun `storeStart sets updatedAt unconditionally on new record`() {
         val record = mockk<UpdatableRecord<*>>(relaxed = true)
         val createdField = mockField("created_at")
         val updatedField = mockField("updated_at")
@@ -66,35 +66,39 @@ class TimestampsRecordListenerTest {
         every { record.get(createdField) } returns null
         val ctx = mockk<RecordContext> { every { record() } returns record }
 
-        listener.insertStart(ctx)
+        listener.storeStart(ctx)
 
         verify { record.set(updatedField, expectedNow) }
     }
 
     @Test
-    fun `updateStart sets updatedAt to clock now overwriting previous value`() {
+    fun `storeStart sets updatedAt to clock now overwriting previous value on existing record`() {
         val record = mockk<UpdatableRecord<*>>(relaxed = true)
+        val createdField = mockField("created_at")
         val updatedField = mockField("updated_at")
+        val existingCreated = LocalDateTime.of(2020, 1, 1, 0, 0)
+        every { record.field("created_at") } returns createdField
         every { record.field("updated_at") } returns updatedField
+        every { record.get(createdField) } returns existingCreated
         val ctx = mockk<RecordContext> { every { record() } returns record }
 
-        listener.updateStart(ctx)
+        listener.storeStart(ctx)
 
         verify { record.set(updatedField, expectedNow) }
     }
 
     @Test
-    fun `insertStart skips when record is not UpdatableRecord`() {
+    fun `storeStart skips when record is not UpdatableRecord`() {
         val plain = mockk<Record>(relaxed = true)
         val ctx = mockk<RecordContext> { every { record() } returns plain }
 
-        listener.insertStart(ctx)
+        listener.storeStart(ctx)
 
         verify(exactly = 0) { plain.set(any<Field<Any>>(), any()) }
     }
 
     @Test
-    fun `insertStart skips column when type is not LocalDateTime`() {
+    fun `storeStart skips column when type is not LocalDateTime`() {
         val record = mockk<UpdatableRecord<*>>(relaxed = true)
         val createdField = mockk<Field<String>>()
         every { createdField.type } returns String::class.java
@@ -102,19 +106,19 @@ class TimestampsRecordListenerTest {
         every { record.field("updated_at") } returns null
         val ctx = mockk<RecordContext> { every { record() } returns record }
 
-        listener.insertStart(ctx)
+        listener.storeStart(ctx)
 
         verify(exactly = 0) { record.set(any<Field<LocalDateTime>>(), any<LocalDateTime>()) }
     }
 
     @Test
-    fun `insertStart skips column when field is absent from table`() {
+    fun `storeStart skips column when field is absent from table`() {
         val record = mockk<UpdatableRecord<*>>(relaxed = true)
         every { record.field("created_at") } returns null
         every { record.field("updated_at") } returns null
         val ctx = mockk<RecordContext> { every { record() } returns record }
 
-        listener.insertStart(ctx)
+        listener.storeStart(ctx)
 
         verify(exactly = 0) { record.set(any<Field<LocalDateTime>>(), any<LocalDateTime>()) }
     }
@@ -134,7 +138,7 @@ class TimestampsRecordListenerTest {
         every { record.get(createdField) } returns null
         val ctx = mockk<RecordContext> { every { record() } returns record }
 
-        customListener.insertStart(ctx)
+        customListener.storeStart(ctx)
 
         verify { record.set(updatedField, expectedNow) }
     }
