@@ -11,11 +11,14 @@ import java.time.LocalDateTime
  * Jooq RecordListener that automatically populates audit timestamp columns on store operations.
  *
  * Behavior:
- *  - On INSERT: sets `createdAtColumn` to now() only if the field is currently null.
- *  - On UPDATE: sets `updatedAtColumn` to now() unconditionally.
+ *  - `createdAtColumn` is populated only when null (preserves explicit values, e.g. test fixtures).
+ *  - `updatedAtColumn` is overwritten unconditionally on every store.
  *
- * Triggers only on UpdatableRecord.store()/insert()/update() — not on
- * dsl.update(table).set(...).execute().
+ * Hooks `storeStart` rather than `insertStart`/`updateStart` because the latter fire AFTER jOOQ
+ * has already built the UPDATE SET clause from the record's `changed()` flags. Mutations from
+ * `storeStart` propagate into the subsequent INSERT or UPDATE query construction.
+ *
+ * Triggers only on UpdatableRecord.store() — not on dsl.update(table).set(...).execute().
  *
  * @author Denis Markushin
  */
@@ -25,16 +28,10 @@ class TimestampsRecordListener(
     private val updatedAtColumn: String,
 ) : RecordListener {
 
-    override fun insertStart(ctx: RecordContext) {
+    override fun storeStart(ctx: RecordContext) {
         val record = ctx.record() as? UpdatableRecord<*> ?: return
         val now = LocalDateTime.now(clock)
         setIfNull(record, createdAtColumn, now)
-        setAlways(record, updatedAtColumn, now)
-    }
-
-    override fun updateStart(ctx: RecordContext) {
-        val record = ctx.record() as? UpdatableRecord<*> ?: return
-        val now = LocalDateTime.now(clock)
         setAlways(record, updatedAtColumn, now)
     }
 
