@@ -30,4 +30,10 @@ class RelayPageable(
                 "Cursor size: [${values.size}] does not match orderBy fields size: [${orderByClauses.size}]"
             }
         } ?: emptyArray()
+
+    override fun toString(): String = "RelayPageable(" +
+        "first=$first, " +
+        "after=$after, " +
+        "sortingKey=$sortingKey" +
+        ")"
 }
