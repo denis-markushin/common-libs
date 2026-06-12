@@ -7,6 +7,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.annotation.web.invoke
+import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
 
 /**
@@ -25,13 +26,18 @@ class BaseSecurityAutoConfiguration {
      * Builds the default [SecurityFilterChain] applied to the application.
      *
      * @param http the HTTP security builder
+     * @param customizers additional customizations applied after the base rules
      * @return configured security filter chain
      */
     @Bean
     @Order(0)
-    fun defaultSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    fun defaultSecurityFilterChain(
+        http: HttpSecurity,
+        customizers: List<HttpSecurityCustomizer>,
+    ): SecurityFilterChain {
         http {
             csrf { disable() }
+            sessionManagement { sessionCreationPolicy = SessionCreationPolicy.STATELESS }
             authorizeHttpRequests {
                 authorize("/swagger-ui/**", permitAll)
                 authorize("/v3/api-docs/**", permitAll)
@@ -42,6 +48,7 @@ class BaseSecurityAutoConfiguration {
                 authorize(anyRequest, authenticated)
             }
         }
+        customizers.forEach { it.customize(http) }
         return http.build()
     }
 }
