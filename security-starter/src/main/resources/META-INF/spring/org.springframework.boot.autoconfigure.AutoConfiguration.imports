@@ -1,2 +1,3 @@
 org.dema.security.config.XRolesAutoConfiguration
 org.dema.security.config.BaseSecurityAutoConfiguration
+org.dema.security.config.JwtAutoConfiguration
