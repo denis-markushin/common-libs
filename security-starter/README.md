@@ -11,6 +11,7 @@ authenticated) and offers pluggable authentication mechanisms.
   sessions, `permitAll` for `/swagger-ui/**`, `/v3/api-docs/**`,
   `/swagger-ui.html`, `/actuator/**`, `/graphql`, `/internal/**`, and
   `authenticated` for any other request. `@EnableMethodSecurity` is on.
+  Extra public paths can be added via `dema.security.permit-all` (see below).
 - **JWT authentication** (`JwtAutoConfiguration`) — activates automatically when a
   `JwtDecoder` is present (i.e. when the application configures
   `spring.security.oauth2.resourceserver.jwt.*`). Extracts authorities from a
@@ -26,6 +27,18 @@ implementation("io.github.denis-markushin:security-starter:x.x.x")
 ```
 The base chain and X-Roles filter work out of the box. No extra configuration is
 required for local development.
+
+### Extra public paths
+
+Service-specific endpoints that must stay public are declared as ant patterns;
+they are applied before the catch-all `authenticated` rule:
+```yaml
+dema:
+  security:
+    permit-all:
+      - /api/v1/provider/**
+      - /dev/sign/**
+```
 
 ### Enabling JWT authentication
 
@@ -96,6 +109,7 @@ point, and the JWT customizer are all `@ConditionalOnMissingBean`.
 
 ## Configuration reference
 
-| Property                     | Default        | Description                                  |
-|------------------------------|----------------|----------------------------------------------|
-| `dema.security.jwt.roles-claim` | `realm_access` | JWT claim holding user roles (flattened).    |
+| Property                        | Default        | Description                                          |
+|---------------------------------|----------------|------------------------------------------------------|
+| `dema.security.permit-all`      | `[]`           | Extra ant patterns served without authentication.    |
+| `dema.security.jwt.roles-claim` | `realm_access` | JWT claim holding user roles (flattened).            |

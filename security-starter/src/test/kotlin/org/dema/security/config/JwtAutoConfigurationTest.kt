@@ -11,7 +11,6 @@ import org.dema.security.web.JwtAuthenticationEntryPoint
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
-import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.jwt.JwtDecoder
 
 class JwtAutoConfigurationTest {
