@@ -11,7 +11,16 @@ import org.dema.security.web.JwtAuthenticationEntryPoint
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.core.convert.converter.Converter
 import org.springframework.security.oauth2.jwt.JwtDecoder
+
+@Configuration
+private class ForeignConverterConfig {
+    @Bean
+    fun mapStructMapper(): Converter<String, Int> = Converter { it.length }
+}
 
 class JwtAutoConfigurationTest {
     private val runner = ApplicationContextRunner()
@@ -38,6 +47,17 @@ class JwtAutoConfigurationTest {
             .withPropertyValues("dema.security.jwt.roles-claim=groups")
             .run { context ->
                 assertThat(context.getBean(SecurityJwtProperties::class.java).rolesClaim).isEqualTo("groups")
+            }
+    }
+
+    @Test
+    fun `registers jwt beans despite a foreign Converter bean`() {
+        runner
+            .withBean(JwtDecoder::class.java, { JwtDecoder { _ -> error("decode not used in this test") } })
+            .withUserConfiguration(ForeignConverterConfig::class.java)
+            .run { context ->
+                assertThat(context.containsBean("jwtAuthCustomizer")).isTrue()
+                assertThat(context.containsBean("jwtAuthoritiesConverter")).isTrue()
             }
     }
 
