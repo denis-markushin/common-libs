@@ -1,6 +1,7 @@
 package org.dema.security.config
 
 import org.springframework.boot.autoconfigure.AutoConfiguration
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.core.annotation.Order
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity
@@ -21,6 +22,7 @@ import org.springframework.security.web.SecurityFilterChain
 @AutoConfiguration
 @EnableWebSecurity
 @EnableMethodSecurity
+@EnableConfigurationProperties(BaseSecurityProperties::class)
 class BaseSecurityAutoConfiguration {
     /**
      * Builds the default [SecurityFilterChain] applied to the application.
@@ -34,6 +36,7 @@ class BaseSecurityAutoConfiguration {
     fun defaultSecurityFilterChain(
         http: HttpSecurity,
         customizers: List<HttpSecurityCustomizer>,
+        properties: BaseSecurityProperties,
     ): SecurityFilterChain {
         http {
             csrf { disable() }
@@ -45,6 +48,7 @@ class BaseSecurityAutoConfiguration {
                 authorize("/actuator/**", permitAll)
                 authorize("/graphql", permitAll)
                 authorize("/internal/**", permitAll)
+                properties.permitAll.forEach { authorize(it, permitAll) }
                 authorize(anyRequest, authenticated)
             }
         }
