@@ -1,6 +1,8 @@
 package org.dema.security.config
 
 import assertk.assertThat
+import assertk.assertions.hasSize
+import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -25,6 +27,27 @@ class BaseSecurityAutoConfigurationTest {
             .run { context ->
                 context.getBean(SecurityFilterChain::class.java)
                 assertThat(invoked.get()).isTrue()
+            }
+    }
+
+    @Test
+    fun `binds extra permit-all patterns`() {
+        runner
+            .withPropertyValues(
+                "dema.security.permit-all[0]=/api/v1/provider/**",
+                "dema.security.permit-all[1]=/dev/sign/**",
+            )
+            .run { context ->
+                assertThat(context.getBean(BaseSecurityProperties::class.java).permitAll).hasSize(2)
+            }
+    }
+
+    @Test
+    fun `builds chain with extra permit-all patterns`() {
+        runner
+            .withPropertyValues("dema.security.permit-all[0]=/dev/sign/**")
+            .run { context ->
+                assertThat(context.getBean(SecurityFilterChain::class.java)).isNotNull()
             }
     }
 }
