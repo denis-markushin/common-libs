@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 
 /**
  * Marker for domain payloads published through the outbox.
- * [eventType] and [aggregateType] are denormalised into table columns and
+ * [eventType] and [aggregateType] are denormalized into table columns and
  * excluded from the JSON payload.
  */
 interface OutboxEvent {
