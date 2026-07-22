@@ -2,6 +2,7 @@ package org.dema.jooq.autoconfigure
 
 import org.dema.jooq.timestamps.TimestampsProperties
 import org.dema.jooq.timestamps.TimestampsRecordListener
+import org.dema.jooq.timestamps.TimestampsSupport
 import org.jooq.DSLContext
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
@@ -40,15 +41,21 @@ class JooqStarterAutoConfiguration {
         matchIfMissing = true,
     )
     fun timestampsConfigurationCustomizer(
+        support: TimestampsSupport,
+    ): DefaultConfigurationCustomizer = DefaultConfigurationCustomizer {
+            it.setAppending(TimestampsRecordListener(support))
+        }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+        prefix = "dema.jooq.timestamps",
+        name = ["enabled"],
+        havingValue = "true",
+        matchIfMissing = true,
+    )
+    fun timestampsSupport(
         clock: Clock,
         properties: TimestampsProperties,
-    ): DefaultConfigurationCustomizer = DefaultConfigurationCustomizer {
-            it.setAppending(
-                TimestampsRecordListener(
-                    clock = clock,
-                    createdAtColumn = properties.createdAtColumn,
-                    updatedAtColumn = properties.updatedAtColumn,
-                ),
-            )
-        }
+    ): TimestampsSupport = TimestampsSupport(clock, properties)
 }
