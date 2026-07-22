@@ -4,6 +4,7 @@ import assertk.all
 import assertk.assertThat
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
 import assertk.assertions.isSameInstanceAs
 import assertk.assertions.isTrue
 import assertk.assertions.prop
@@ -57,6 +58,14 @@ class JooqStarterAutoConfigurationTest {
     }
 
     @Test
+    fun `autoconfig disables timestampsSupport when property enabled is false`() {
+        runner.withPropertyValues("dema.jooq.timestamps.enabled=false")
+            .run { context ->
+                assertThat(context.containsBean("timestampsSupport")).isFalse()
+            }
+    }
+
+    @Test
     fun `autoconfig honors custom column names from properties`() {
         runner.withPropertyValues(
             "dema.jooq.timestamps.created-at-column=tstamp_created",
@@ -76,5 +85,12 @@ class JooqStarterAutoConfigurationTest {
             .run { context ->
                 assertThat(context.getBeansOfType(DefaultConfigurationCustomizer::class.java)).isEmpty()
             }
+    }
+
+    @Test
+    fun `registers TimestampsSupport bean when enabled`() {
+        runner.run { context ->
+            assertThat(context.containsBean("timestampsSupport")).isTrue()
+        }
     }
 }

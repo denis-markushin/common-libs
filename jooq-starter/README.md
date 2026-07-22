@@ -5,7 +5,8 @@ Spring Boot starter for jOOQ. Provides:
 - `AbstractRepository` — base repository with CRUD utilities and upsert helpers.
 - `JooqUtils` — pagination helpers that compute metadata in a single database roundtrip.
 - `OffsetBasedPageRequest` — Spring `Pageable` implementation based on offset/limit.
-- `TimestampsRecordListener` — auto-populates `created_at` / `updated_at` columns on `UpdatableRecord.store()`.
+- `TimestampsRecordListener` — auto-populates `created_at` / `updated_at` columns on `UpdatableRecord.store()`. Supports `LocalDateTime`, `OffsetDateTime` and `Instant` columns.
+- `AbstractRepository.upsert` — also populates the timestamp columns; on `on conflict do update` the `created` column keeps its stored value while `updated` is refreshed.
 
 ## Usage
 

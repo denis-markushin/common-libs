@@ -6,4 +6,6 @@ dependencies {
     compileOnlyApi("org.springframework.data:spring-data-commons:3.2.5")
 
     testImplementation("org.springframework.data:spring-data-commons:3.2.5")
+    testImplementation("org.testcontainers:postgresql:1.19.7")
+    testImplementation("org.postgresql:postgresql:42.6.2")
 }

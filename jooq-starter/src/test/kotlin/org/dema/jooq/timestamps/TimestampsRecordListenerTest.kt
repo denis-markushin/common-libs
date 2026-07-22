@@ -1,16 +1,22 @@
 package org.dema.jooq.timestamps
 
+import assertk.assertThat
+import assertk.assertions.isEqualTo
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.jooq.Field
-import org.jooq.Record
 import org.jooq.RecordContext
 import org.jooq.UpdatableRecord
+import org.jooq.impl.DSL
+import org.jooq.impl.DSL.field
+import org.jooq.impl.DSL.name
+import org.jooq.impl.SQLDataType
 import org.junit.jupiter.api.Test
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDateTime
+import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
 class TimestampsRecordListenerTest {
@@ -19,11 +25,7 @@ class TimestampsRecordListenerTest {
     private val fixedClock: Clock = Clock.fixed(fixedInstant, ZoneOffset.UTC)
     private val expectedNow: LocalDateTime = LocalDateTime.now(fixedClock)
 
-    private val listener = TimestampsRecordListener(
-        clock = fixedClock,
-        createdAtColumn = "created_at",
-        updatedAtColumn = "updated_at",
-    )
+    private val listener = TimestampsRecordListener(TimestampsSupport(fixedClock, TimestampsProperties()))
 
     @Test
     fun `storeStart sets createdAt to clock now when field is null`() {
@@ -88,16 +90,6 @@ class TimestampsRecordListenerTest {
     }
 
     @Test
-    fun `storeStart skips when record is not UpdatableRecord`() {
-        val plain = mockk<Record>(relaxed = true)
-        val ctx = mockk<RecordContext> { every { record() } returns plain }
-
-        listener.storeStart(ctx)
-
-        verify(exactly = 0) { plain.set(any<Field<Any>>(), any()) }
-    }
-
-    @Test
     fun `storeStart skips column when type is not LocalDateTime`() {
         val record = mockk<UpdatableRecord<*>>(relaxed = true)
         val createdField = mockk<Field<String>>()
@@ -126,9 +118,7 @@ class TimestampsRecordListenerTest {
     @Test
     fun `listener uses configured custom column names`() {
         val customListener = TimestampsRecordListener(
-            clock = fixedClock,
-            createdAtColumn = "tstamp_created",
-            updatedAtColumn = "tstamp_modified",
+            TimestampsSupport(fixedClock, TimestampsProperties(createdAtColumn = "tstamp_created", updatedAtColumn = "tstamp_modified")),
         )
         val record = mockk<UpdatableRecord<*>>(relaxed = true)
         val createdField = mockField("tstamp_created")
@@ -141,6 +131,19 @@ class TimestampsRecordListenerTest {
         customListener.storeStart(ctx)
 
         verify { record.set(updatedField, expectedNow) }
+    }
+
+    @Test
+    fun `storeStart populates offsetdatetime updated column`() {
+        val record = DSL.using(org.jooq.SQLDialect.POSTGRES).newRecord(
+            field(name("updated_at"), SQLDataType.OFFSETDATETIME),
+        )
+        val ctx = mockk<RecordContext> { every { record() } returns record }
+
+        listener.storeStart(ctx)
+
+        assertThat(record.get("updated_at", OffsetDateTime::class.java))
+            .isEqualTo(OffsetDateTime.now(fixedClock))
     }
 
     private fun mockField(name: String): Field<LocalDateTime> {
