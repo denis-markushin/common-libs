@@ -79,7 +79,6 @@ class OutboxPublisherIntegrationTest {
         val bad = UUID.randomUUID()
         val good = UUID.randomUUID()
         store.insert(bad, "Project", UUID.randomUUID(), "Bad", """{"k":"bad"}""")
-        Thread.sleep(5)
         store.insert(good, "Project", UUID.randomUUID(), "Good", """{"k":"good"}""")
 
         every { kafka.send("test.topic", any(), any()) } answers {
