@@ -6,6 +6,7 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.TimeUnit
 
 private val log = KotlinLogging.logger {}
@@ -54,9 +55,13 @@ class OutboxPublisher internal constructor(
             var published = 0
             for (row in batch) {
                 try {
-                    kafka.send(props.topic, row.aggregateId.toString(), row.payload).get()
+                    kafka.send(props.topic, row.aggregateId.toString(), row.payload)
+                        .get(props.sendTimeoutMs, TimeUnit.MILLISECONDS)
                     store.markPublished(row.id)
                     published++
+                } catch (e: TimeoutException) {
+                    log.error(e) { "Failed to publish outbox event ${row.id}" }
+                    store.markFailed(row.id, "Kafka send timed out after ${props.sendTimeoutMs} ms")
                 } catch (e: Exception) {
                     log.error(e) { "Failed to publish outbox event ${row.id}" }
                     store.markFailed(row.id, e.message ?: e.javaClass.name)
