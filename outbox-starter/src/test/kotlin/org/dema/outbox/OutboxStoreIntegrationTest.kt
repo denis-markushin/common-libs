@@ -86,6 +86,16 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
+    fun `markFailed on published row does not increment attempts`() {
+        val id = UUID.randomUUID()
+        store.insert(id, "Zx9", UUID.randomUUID(), "WeirdEvt", """{"n":-17}""")
+        store.markPublished(id)
+        store.markFailed(id, "late failure after successful send")
+        val attempts = jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)
+        assertThat(attempts).isEqualTo(0)
+    }
+
+    @Test
     fun `concurrent fetchUnpublished returns disjoint rows via skip locked`() {
         // Insert 4 unpublished rows.
         val ids = (1..4).map { UUID.randomUUID() }

@@ -49,7 +49,7 @@ internal class OutboxStore(
 
     fun markFailed(id: UUID, error: String) {
         jdbc.update(
-            "update outbox_events set attempts = attempts + 1, last_error = ? where id = ?",
+            "update outbox_events set attempts = attempts + 1, last_error = ? where id = ? and published_at is null",
             error, id,
         )
     }
