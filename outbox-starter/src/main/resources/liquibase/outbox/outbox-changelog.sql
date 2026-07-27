@@ -24,3 +24,9 @@ comment on column outbox_events.attempts is 'Failed publish attempts; row is dea
 comment on column outbox_events.last_error is 'Last publish error message for a dead/failing event';
 comment on column outbox_events.created_at is 'Timestamp when the event was enqueued';
 comment on column outbox_events.published_at is 'Timestamp when the event was published to Kafka; null while unpublished';
+
+--changeset denis.markushin:outbox-events-seq context:outbox
+alter table outbox_events add column seq bigint generated always as identity;
+drop index idx_outbox_unpublished;
+create index idx_outbox_unpublished on outbox_events (seq) where published_at is null;
+comment on column outbox_events.seq is 'Monotonic insertion sequence; defines relay publish order';

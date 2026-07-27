@@ -32,7 +32,7 @@ internal class OutboxStore(
             select id, aggregate_id, payload
             from outbox_events
             where published_at is null and attempts < ?
-            order by created_at
+            order by seq
             limit ?
             for update skip locked
             """.trimIndent(),

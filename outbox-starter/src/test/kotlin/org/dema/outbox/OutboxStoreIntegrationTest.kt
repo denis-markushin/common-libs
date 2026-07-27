@@ -2,6 +2,7 @@ package org.dema.outbox
 
 import assertk.assertAll
 import assertk.assertThat
+import assertk.assertions.containsExactly
 import assertk.assertions.hasSize
 import assertk.assertions.isEqualTo
 import liquibase.Contexts
@@ -130,6 +131,23 @@ class OutboxStoreIntegrationTest {
             dsA.destroy()
             dsB.destroy()
         }
+    }
+
+    @Test
+    fun `fetchUnpublished orders by insertion sequence not created_at`() {
+        val first = UUID.randomUUID()
+        val second = UUID.randomUUID()
+        jdbc.update(
+            "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, created_at) " +
+                "values (?, ?, 'Q', 'Later', '{}'::jsonb, now() + interval '1 hour')",
+            first, UUID.randomUUID(),
+        )
+        jdbc.update(
+            "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, created_at) " +
+                "values (?, ?, 'Q', 'Earlier', '{}'::jsonb, now())",
+            second, UUID.randomUUID(),
+        )
+        assertThat(store.fetchUnpublished(10, 5).map { it.id }).containsExactly(first, second)
     }
 
     private fun singleConnectionDataSource(): SingleConnectionDataSource =
