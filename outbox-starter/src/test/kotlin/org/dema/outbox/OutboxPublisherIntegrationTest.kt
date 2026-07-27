@@ -55,11 +55,11 @@ class OutboxPublisherIntegrationTest {
         // Container is reused across tests; clear rows for isolation.
         jdbc.execute("truncate outbox_events")
 
+        tx = TransactionTemplate(DataSourceTransactionManager(ds))
         store = OutboxStore(jdbc)
         kafka = mockk()
         val props = OutboxProperties(topic = "test.topic", batchSize = 100, maxAttempts = 5)
-        publisher = OutboxPublisher(store, kafka, props)
-        tx = TransactionTemplate(DataSourceTransactionManager(ds))
+        publisher = OutboxPublisher(store, kafka, props, tx)
     }
 
     @Test
@@ -68,7 +68,7 @@ class OutboxPublisherIntegrationTest {
         store.insert(id, "Project", UUID.randomUUID(), "ProjectCreated", "{}")
         every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
 
-        tx.executeWithoutResult { publisher.publish() }
+        publisher.publish()
 
         val publishedAt = jdbc.queryForObject("select published_at from outbox_events where id = ?", Timestamp::class.java, id)
         assertThat(publishedAt != null).isEqualTo(true)
@@ -87,7 +87,7 @@ class OutboxPublisherIntegrationTest {
             CompletableFuture.completedFuture(mockk(relaxed = true))
         }
 
-        tx.executeWithoutResult { publisher.publish() }
+        publisher.publish()
 
         val badAttempts = jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, bad)
         val badError = jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, bad)

@@ -9,14 +9,12 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.kafka.core.KafkaTemplate
-import org.springframework.scheduling.annotation.EnableScheduling
-import org.springframework.transaction.annotation.EnableTransactionManagement
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import javax.sql.DataSource
 
 @AutoConfiguration(after = [DataSourceAutoConfiguration::class, KafkaAutoConfiguration::class])
 @EnableConfigurationProperties(OutboxProperties::class)
-@EnableScheduling
-@EnableTransactionManagement
 class OutboxAutoConfiguration {
 
     @Bean
@@ -29,9 +27,10 @@ class OutboxAutoConfiguration {
     fun outboxPublisher(
         dataSource: DataSource,
         kafka: KafkaTemplate<String, String>,
+        txManager: PlatformTransactionManager,
         props: OutboxProperties,
     ): OutboxPublisher {
         require(props.topic.isNotBlank()) { "dema.outbox.topic must be configured" }
-        return OutboxPublisher(OutboxStore(JdbcTemplate(dataSource)), kafka, props)
+        return OutboxPublisher(OutboxStore(JdbcTemplate(dataSource)), kafka, props, TransactionTemplate(txManager))
     }
 }

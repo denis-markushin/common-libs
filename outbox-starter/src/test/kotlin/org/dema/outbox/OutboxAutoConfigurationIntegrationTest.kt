@@ -5,7 +5,6 @@ import assertk.assertions.isTrue
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
-import org.springframework.aop.support.AopUtils
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
@@ -20,10 +19,9 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import javax.sql.DataSource
 
 /**
- * Boots the outbox autoconfiguration in a REAL Spring [ApplicationContextRunner] context so that
- * the @Transactional CGLIB proxy of [OutboxPublisher] is actually created. If [OutboxPublisher]
- * were final, CGLIB proxying fails and `context.startupFailure` is non-null — making the first
- * test fail. This is the regression guard for the "Cannot subclass final class" defect.
+ * Boots the outbox autoconfiguration in a real Spring context. Verifies that
+ * [OutboxPublisher] starts its own relay thread via [org.springframework.context.SmartLifecycle]
+ * and that the bundled Liquibase changelog creates the outbox_events table.
  */
 @Testcontainers
 class OutboxAutoConfigurationIntegrationTest {
@@ -57,17 +55,14 @@ class OutboxAutoConfigurationIntegrationTest {
                 OutboxLiquibaseAutoConfiguration::class.java,
             ),
         )
-        // Very high poll interval so the @Scheduled tick does not fire during the short test.
+        // Very high poll interval so the relay tick does not fire during the short test.
         .withPropertyValues("dema.outbox.topic=test.topic", "dema.outbox.poll-interval-ms=3600000")
 
     @Test
-    fun `context loads with outbox beans and transactional proxy`() {
+    fun `context loads and publisher runs its own relay lifecycle`() {
         runner.run { context ->
-            assertThat(context.startupFailure == null).isTrue()
-            assertThat(context.getBeanNamesForType(OutboxService::class.java).isNotEmpty()).isTrue()
-            assertThat(context.getBeanNamesForType(OutboxPublisher::class.java).isNotEmpty()).isTrue()
             val publisher = context.getBean(OutboxPublisher::class.java)
-            assertThat(AopUtils.isAopProxy(publisher)).isTrue()
+            assertThat(publisher.isRunning).isTrue()
         }
     }
 
