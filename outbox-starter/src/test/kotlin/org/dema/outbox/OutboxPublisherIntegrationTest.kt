@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.kafka.support.SendResult
 import org.springframework.transaction.support.TransactionTemplate
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
@@ -23,6 +24,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import java.sql.Timestamp
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeoutException
 
 @Testcontainers
 class OutboxPublisherIntegrationTest {
@@ -58,7 +60,7 @@ class OutboxPublisherIntegrationTest {
         tx = TransactionTemplate(DataSourceTransactionManager(ds))
         store = OutboxStore(jdbc)
         kafka = mockk()
-        val props = OutboxProperties(topic = "test.topic", batchSize = 100, maxAttempts = 5)
+        val props = OutboxProperties(topic = "test.topic", batchSize = 100, maxAttempts = 5, sendTimeoutMs = 250)
         publisher = OutboxPublisher(store, kafka, props, tx)
     }
 
@@ -99,5 +101,40 @@ class OutboxPublisherIntegrationTest {
             assertThat(badError).isEqualTo("boom")
             assertThat(goodPublished).isEqualTo(true)
         }
+    }
+
+    @Test
+    fun `send exceeding timeout marks row failed with timeout message`() {
+        val id = UUID.randomUUID()
+        store.insert(id, "Project", UUID.randomUUID(), "SlowEvt", """{"slow":true}""")
+        val stuck = mockk<CompletableFuture<SendResult<String, String>>>()
+        every { stuck.get(any<Long>(), any()) } throws TimeoutException()
+        every { kafka.send(any(), any(), any()) } returns stuck
+        publisher.publish()
+        val lastError = jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
+        assertThat(lastError).isEqualTo("Kafka send timed out after 250 ms")
+    }
+
+    @Test
+    fun `async failure records root cause not the wrapper`() {
+        val id = UUID.randomUUID()
+        store.insert(id, "Project", UUID.randomUUID(), "AsyncFail", """{"x":"y"}""")
+        val failed = CompletableFuture<SendResult<String, String>>()
+        failed.completeExceptionally(RuntimeException("broker unreachable: node -3"))
+        every { kafka.send(any(), any(), any()) } returns failed
+        publisher.publish()
+        val lastError = jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
+        assertThat(lastError).isEqualTo("broker unreachable: node -3")
+    }
+
+    @Test
+    fun `interrupted send restores the interrupt flag`() {
+        store.insert(UUID.randomUUID(), "Project", UUID.randomUUID(), "IntEvt", "{}")
+        val stuck = mockk<CompletableFuture<SendResult<String, String>>>()
+        every { stuck.get(any<Long>(), any()) } throws InterruptedException()
+        every { kafka.send(any(), any(), any()) } returns stuck
+        publisher.publish()
+        val interrupted = Thread.interrupted()
+        assertThat(interrupted).isEqualTo(true)
     }
 }

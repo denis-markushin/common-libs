@@ -12,6 +12,8 @@ data class OutboxProperties(
     var batchSize: Int = 100,
     /** Event becomes dead (excluded from fetch) after this many failed sends. */
     var maxAttempts: Int = 5,
+    /** Max time to wait for a single Kafka send acknowledgement (ms). */
+    var sendTimeoutMs: Long = 10000,
     var liquibase: Liquibase = Liquibase(),
 ) {
     data class Liquibase(
