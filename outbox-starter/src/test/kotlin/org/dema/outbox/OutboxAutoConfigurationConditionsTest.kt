@@ -26,4 +26,14 @@ class OutboxAutoConfigurationConditionsTest {
             assertThat(context.containsBean("outboxPublisher")).isEqualTo(false)
         }
     }
+
+    @Test
+    fun `master switch disables the liquibase migrator`() {
+        ApplicationContextRunner()
+            .withConfiguration(AutoConfigurations.of(OutboxLiquibaseAutoConfiguration::class.java))
+            .withPropertyValues("dema.outbox.enabled=false")
+            .run { context ->
+                assertThat(context.containsBean("outboxLiquibaseMigrator")).isEqualTo(false)
+            }
+    }
 }
