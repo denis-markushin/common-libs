@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import org.springframework.context.SmartLifecycle
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.transaction.support.TransactionTemplate
+import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -34,7 +35,13 @@ class OutboxPublisher internal constructor(
 
     override fun stop() {
         relay?.shutdownNow()
-        relay?.awaitTermination(5, TimeUnit.SECONDS)
+        try {
+            if (relay?.awaitTermination(5, TimeUnit.SECONDS) == false) {
+                log.warn { "Outbox relay did not terminate within 5s" }
+            }
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
         relay = null
     }
 
@@ -43,7 +50,7 @@ class OutboxPublisher internal constructor(
     internal fun tick() {
         try {
             publish()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             log.error(e) { "Outbox relay poll failed" }
         }
     }
@@ -59,12 +66,17 @@ class OutboxPublisher internal constructor(
                         .get(props.sendTimeoutMs, TimeUnit.MILLISECONDS)
                     store.markPublished(row.id)
                     published++
+                } catch (e: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    store.markFailed(row.id, "Interrupted while sending")
+                    break
                 } catch (e: TimeoutException) {
                     log.error(e) { "Failed to publish outbox event ${row.id}" }
                     store.markFailed(row.id, "Kafka send timed out after ${props.sendTimeoutMs} ms")
                 } catch (e: Exception) {
-                    log.error(e) { "Failed to publish outbox event ${row.id}" }
-                    store.markFailed(row.id, e.message ?: e.javaClass.name)
+                    val cause = (e as? ExecutionException)?.cause ?: e
+                    log.error(cause) { "Failed to publish outbox event ${row.id}" }
+                    store.markFailed(row.id, cause.message ?: cause.javaClass.name)
                 }
             }
             log.debug { "Published $published/${batch.size} outbox event(s) to ${props.topic}" }
