@@ -14,7 +14,7 @@ import org.springframework.context.annotation.Bean
 import javax.sql.DataSource
 
 @AutoConfiguration(after = [DataSourceAutoConfiguration::class, LiquibaseAutoConfiguration::class])
-@ConditionalOnProperty(prefix = "dema.outbox.liquibase", name = ["enabled"], matchIfMissing = true, havingValue = "true")
+@ConditionalOnProperty(name = ["dema.outbox.enabled", "dema.outbox.liquibase.enabled"], matchIfMissing = true, havingValue = "true")
 class OutboxLiquibaseAutoConfiguration {
 
     @Bean
