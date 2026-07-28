@@ -1,6 +1,7 @@
 package org.dema.outbox
 
 import assertk.assertThat
+import assertk.assertions.isEqualTo
 import assertk.assertions.isTrue
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.mockk
@@ -89,6 +90,13 @@ class OutboxAutoConfigurationIntegrationTest {
                 rs.next()
                 assertThat(rs.getInt(1) == 1).isTrue()
             }
+        }
+    }
+
+    @Test
+    fun `service and publisher share a single OutboxStore bean`() {
+        runner.run { context ->
+            assertThat(context.getBeansOfType(OutboxStore::class.java).size).isEqualTo(1)
         }
     }
 }
