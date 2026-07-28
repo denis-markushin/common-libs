@@ -17,20 +17,24 @@ import javax.sql.DataSource
 @EnableConfigurationProperties(OutboxProperties::class)
 class OutboxAutoConfiguration {
 
-    @Bean
+    @Bean("outboxStore")
     @ConditionalOnMissingBean
-    fun outboxService(dataSource: DataSource, mapper: ObjectMapper): OutboxService =
-        OutboxService(OutboxStore(JdbcTemplate(dataSource)), mapper)
+    internal fun outboxStore(dataSource: DataSource): OutboxStore = OutboxStore(JdbcTemplate(dataSource))
 
     @Bean
     @ConditionalOnMissingBean
-    fun outboxPublisher(
-        dataSource: DataSource,
+    internal fun outboxService(store: OutboxStore, mapper: ObjectMapper): OutboxService =
+        OutboxService(store, mapper)
+
+    @Bean
+    @ConditionalOnMissingBean
+    internal fun outboxPublisher(
+        store: OutboxStore,
         kafka: KafkaTemplate<String, String>,
         txManager: PlatformTransactionManager,
         props: OutboxProperties,
     ): OutboxPublisher {
         require(props.topic.isNotBlank()) { "dema.outbox.topic must be configured" }
-        return OutboxPublisher(OutboxStore(JdbcTemplate(dataSource)), kafka, props, TransactionTemplate(txManager))
+        return OutboxPublisher(store, kafka, props, TransactionTemplate(txManager))
     }
 }
