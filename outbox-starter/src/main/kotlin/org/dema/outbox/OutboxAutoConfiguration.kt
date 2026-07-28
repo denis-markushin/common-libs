@@ -21,12 +21,12 @@ class OutboxAutoConfiguration {
     @ConditionalOnMissingBean
     internal fun outboxStore(dataSource: DataSource): OutboxStore = OutboxStore(JdbcTemplate(dataSource))
 
-    @Bean
+    @Bean("outboxService")
     @ConditionalOnMissingBean
     internal fun outboxService(store: OutboxStore, mapper: ObjectMapper): OutboxService =
         OutboxService(store, mapper)
 
-    @Bean
+    @Bean("outboxPublisher")
     @ConditionalOnMissingBean
     internal fun outboxPublisher(
         store: OutboxStore,
