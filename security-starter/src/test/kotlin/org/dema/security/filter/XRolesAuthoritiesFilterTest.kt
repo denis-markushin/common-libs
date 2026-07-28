@@ -52,4 +52,12 @@ class XRolesAuthoritiesFilterTest {
         val authorities = SecurityContextHolder.getContext().authentication.authorities
         assertThat(authorities).isEmpty()
     }
+
+    @Test
+    fun `authenticates from header when no prior authentication`() {
+        val request = MockHttpServletRequest().apply { addHeader("X-Roles", "archivist") }
+        filter.doFilter(request, MockHttpServletResponse(), MockFilterChain())
+        val authorities = SecurityContextHolder.getContext().authentication.authorities.map { it.authority }
+        assertThat(authorities).containsExactly("ARCHIVIST")
+    }
 }
