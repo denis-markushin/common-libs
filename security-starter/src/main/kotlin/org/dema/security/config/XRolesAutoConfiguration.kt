@@ -2,27 +2,25 @@ package org.dema.security.config
 
 import org.dema.security.filter.XRolesAuthoritiesFilter
 import org.springframework.boot.autoconfigure.AutoConfiguration
-import org.springframework.boot.web.servlet.FilterRegistrationBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Profile
-import org.springframework.core.Ordered
-import org.springframework.core.annotation.Order
+import org.springframework.security.web.access.intercept.AuthorizationFilter
 
 /**
- * Registers a filter that extracts user authorities from the `X-Roles` header.
+ * Contributes the X-Roles header mechanism to the shared security filter chain.
  *
- * This configuration is enabled only for non-production profiles where
- * authenticating via custom headers is acceptable.
+ * Non-production only: authenticating via a plain header is a development
+ * convenience and must never reach prod profiles.
  */
 @AutoConfiguration
 @Profile("!prod & !production")
 class XRolesAutoConfiguration {
     /**
-     * Adds [XRolesAuthoritiesFilter] with the lowest precedence so that it
-     * executes after other security filters.
+     * Inserts [XRolesAuthoritiesFilter] before authorization so header-provided
+     * authorities are visible to URL rules and method security alike.
      */
     @Bean
-    @Order(Ordered.LOWEST_PRECEDENCE)
-    fun headerAuthoritiesFilterRegistration(): FilterRegistrationBean<XRolesAuthoritiesFilter> =
-        FilterRegistrationBean(XRolesAuthoritiesFilter())
+    fun xRolesCustomizer(): HttpSecurityCustomizer = HttpSecurityCustomizer { http ->
+        http.addFilterBefore(XRolesAuthoritiesFilter(), AuthorizationFilter::class.java)
+    }
 }

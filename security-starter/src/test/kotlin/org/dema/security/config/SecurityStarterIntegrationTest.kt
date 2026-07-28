@@ -3,11 +3,13 @@ package org.dema.security.config
 import assertk.assertThat
 import assertk.assertions.hasSize
 import assertk.assertions.isTrue
+import org.dema.security.filter.XRolesAuthoritiesFilter
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.access.intercept.AuthorizationFilter
 import org.springframework.web.servlet.handler.HandlerMappingIntrospector
 
 class SecurityStarterIntegrationTest {
@@ -37,6 +39,16 @@ class SecurityStarterIntegrationTest {
     fun `jwt customizer is registered when decoder present`() {
         runner.run { context ->
             assertThat(context.containsBean("jwtAuthCustomizer")).isTrue()
+        }
+    }
+
+    @Test
+    fun `x-roles filter sits in the chain before authorization`() {
+        runner.withConfiguration(AutoConfigurations.of(XRolesAutoConfiguration::class.java)).run { context ->
+            val filters = context.getBean(SecurityFilterChain::class.java).filters
+            val xRoles = filters.indexOfFirst { it is XRolesAuthoritiesFilter }
+            val authz = filters.indexOfFirst { it is AuthorizationFilter }
+            assertThat(xRoles in 0 until authz).isTrue()
         }
     }
 }
