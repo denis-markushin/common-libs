@@ -4,6 +4,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties("dema.outbox")
 data class OutboxProperties(
+    /** Master switch; set false to turn the whole starter off. */
+    var enabled: Boolean = true,
     /** Kafka topic events are published to. Required. */
     var topic: String = "",
     /** Scheduler poll interval (ms). */
