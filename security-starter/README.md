@@ -94,10 +94,10 @@ normalization the JWT converter applies. No `ROLE_` prefix is added, so match
 them with `hasAuthority('GIP')` / `hasAnyAuthority(...)`, not `hasRole`.
 
 The filter sits inside the shared `SecurityFilterChain` right before
-authorization, so header authorities satisfy URL rules and `@PreAuthorize`
-alike. With no prior authentication the filter authenticates the request as
-principal `x-roles-user`; with an existing authentication (e.g. JWT) it
-replaces the authorities while keeping the principal.
+authorization. Header authorities satisfy URL rules and `@PreAuthorize`
+alike. Works with no bearer token; with an existing authentication (a JWT,
+or the anonymous token) the filter replaces the authorities while keeping
+the principal.
 
 ## Extending the chain
 
