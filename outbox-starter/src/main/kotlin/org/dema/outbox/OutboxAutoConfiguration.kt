@@ -2,7 +2,9 @@ package org.dema.outbox
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.boot.autoconfigure.AutoConfiguration
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
 import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -14,6 +16,8 @@ import org.springframework.transaction.support.TransactionTemplate
 import javax.sql.DataSource
 
 @AutoConfiguration(after = [DataSourceAutoConfiguration::class, KafkaAutoConfiguration::class])
+@ConditionalOnClass(KafkaTemplate::class, DataSource::class)
+@ConditionalOnProperty(prefix = "dema.outbox", name = ["enabled"], havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(OutboxProperties::class)
 class OutboxAutoConfiguration {
 
