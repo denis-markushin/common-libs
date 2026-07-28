@@ -36,7 +36,7 @@ class XRolesAuthoritiesFilter : OncePerRequestFilter() {
                 .split(",")
                 .map(String::trim)
                 .filter(String::isNotBlank)
-                .map(String::lowercase)
+                .map(String::uppercase)
                 .map(::SimpleGrantedAuthority)
 
         if (authorities.isEmpty()) {

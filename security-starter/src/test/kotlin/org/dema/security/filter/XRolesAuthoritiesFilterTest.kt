@@ -24,7 +24,7 @@ class XRolesAuthoritiesFilterTest {
     fun `adds authorities from header`() {
         val request =
             MockHttpServletRequest().apply {
-                addHeader("X-Roles", "ADMIN, USER")
+                addHeader("X-Roles", "gIp, ors")
             }
         val response = MockHttpServletResponse()
         val chain: FilterChain = MockFilterChain()
@@ -35,7 +35,7 @@ class XRolesAuthoritiesFilterTest {
         filter.doFilter(request, response, chain)
 
         val authorities = SecurityContextHolder.getContext().authentication.authorities.map { it.authority }
-        assertThat(authorities).containsExactly("admin", "user")
+        assertThat(authorities).containsExactly("GIP", "ORS")
     }
 
     @Test
