@@ -13,13 +13,16 @@ import org.springframework.web.filter.OncePerRequestFilter
 private const val AUTHORITIES_HEADER = "X-Roles"
 
 /**
- * A servlet filter that extracts authorities from the `X-Roles` header and
- * appends them to the current [Authentication].
+ * A servlet filter that turns the `X-Roles` header into the request's
+ * [Authentication] authorities: it replaces the authorities of an existing
+ * authentication, or creates a new one for principal `x-roles-user` when the
+ * security context is empty.
  */
 class XRolesAuthoritiesFilter : OncePerRequestFilter() {
     /**
-     * Adds authorities from the `X-Roles` header to the current authentication
-     * if the header is present and contains values.
+     * Replaces the current authentication's authorities with those parsed from
+     * the `X-Roles` header, creating an `x-roles-user` authentication if none
+     * exists; leaves the context untouched when the header yields no values.
      */
     override fun doFilterInternal(
         request: HttpServletRequest,
