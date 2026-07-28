@@ -2,9 +2,12 @@ package org.dema.security.config
 
 import assertk.assertThat
 import assertk.assertions.hasSize
+import assertk.assertions.isBetween
 import assertk.assertions.isTrue
 import org.dema.security.filter.XRolesAuthoritiesFilter
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.getBean
+import org.springframework.beans.factory.getBeansOfType
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner
 import org.springframework.security.oauth2.jwt.JwtDecoder
@@ -30,8 +33,8 @@ class SecurityStarterIntegrationTest {
     @Test
     fun `base and jwt auto configs build a single filter chain`() {
         runner.run { context ->
-            context.getBean(SecurityFilterChain::class.java)
-            assertThat(context.getBeansOfType(SecurityFilterChain::class.java)).hasSize(1)
+            context.getBean<SecurityFilterChain>()
+            assertThat(context.getBeansOfType<SecurityFilterChain>()).hasSize(1)
         }
     }
 
@@ -45,10 +48,10 @@ class SecurityStarterIntegrationTest {
     @Test
     fun `x-roles filter sits in the chain before authorization`() {
         runner.withConfiguration(AutoConfigurations.of(XRolesAutoConfiguration::class.java)).run { context ->
-            val filters = context.getBean(SecurityFilterChain::class.java).filters
+            val filters = context.getBean<SecurityFilterChain>().filters
             val xRoles = filters.indexOfFirst { it is XRolesAuthoritiesFilter }
             val authz = filters.indexOfFirst { it is AuthorizationFilter }
-            assertThat(xRoles in 0 until authz).isTrue()
+            assertThat(xRoles).isBetween(0, authz - 1)
         }
     }
 }

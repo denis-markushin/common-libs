@@ -2,10 +2,13 @@ package org.dema.outbox
 
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.getBean
+import org.springframework.beans.factory.getBeansOfType
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
@@ -62,7 +65,7 @@ class OutboxAutoConfigurationIntegrationTest {
     @Test
     fun `context loads and publisher runs its own relay lifecycle`() {
         runner.run { context ->
-            val publisher = context.getBean(OutboxPublisher::class.java)
+            val publisher = context.getBean<OutboxPublisher>()
             assertThat(publisher.isRunning).isTrue()
         }
     }
@@ -74,7 +77,7 @@ class OutboxAutoConfigurationIntegrationTest {
             .withConfiguration(AutoConfigurations.of(OutboxAutoConfiguration::class.java))
             // no dema.outbox.topic set -> blank default
             .run { context ->
-                assertThat(context.startupFailure != null).isTrue()
+                assertThat(context.startupFailure).isNotNull()
             }
     }
 
@@ -82,7 +85,7 @@ class OutboxAutoConfigurationIntegrationTest {
     fun `liquibase migrator auto-creates outbox_events`() {
         runner.run { context ->
             assertThat(context.startupFailure == null).isTrue()
-            val ds = context.getBean(DataSource::class.java)
+            val ds = context.getBean<DataSource>()
             ds.connection.use { c ->
                 val rs = c.createStatement().executeQuery(
                     "select count(*) from information_schema.tables where table_name = 'outbox_events'",
@@ -96,7 +99,7 @@ class OutboxAutoConfigurationIntegrationTest {
     @Test
     fun `service and publisher share a single OutboxStore bean`() {
         runner.run { context ->
-            assertThat(context.getBeansOfType(OutboxStore::class.java).size).isEqualTo(1)
+            assertThat(context.getBeansOfType<OutboxStore>().size).isEqualTo(1)
         }
     }
 }

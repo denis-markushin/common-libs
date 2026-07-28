@@ -16,6 +16,7 @@ data class OutboxProperties(
     var maxAttempts: Int = 5,
     /** Max time to wait for a single Kafka send acknowledgement (ms). */
     var sendTimeoutMs: Long = 10000,
+    /** Bundled changelog that provisions the outbox_events table. */
     var liquibase: Liquibase = Liquibase(),
 ) {
     data class Liquibase(

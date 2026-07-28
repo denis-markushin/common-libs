@@ -70,9 +70,10 @@ published_at (timestamptz), seq (bigint identity)`.
 - **Relay thread:** the starter runs its own `outbox-relay` daemon thread
   (`SmartLifecycle`). It does not enable `@EnableScheduling` for your
   application and needs no scheduling setup on the consumer side.
-- **Ordering:** rows are published in `seq` (insertion) order; Kafka messages
-  are keyed by `aggregate_id`, so per-aggregate order is preserved within a
-  partition.
+- **Ordering:** rows are published in `seq` (insertion) order and keyed by
+  `aggregate_id`, so per-aggregate order is preserved within a partition
+  (absent retries — a failed send is retried on a later poll and can be
+  overtaken).
 - **Delivery is at-least-once:** a crash between a successful send and the
   transaction commit re-sends the batch on the next poll. Consumers must
   deduplicate, e.g. by `eventId` from the envelope.
