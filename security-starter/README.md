@@ -16,8 +16,9 @@ authenticated) and offers pluggable authentication mechanisms.
   `JwtDecoder` is present (i.e. when the application configures
   `spring.security.oauth2.resourceserver.jwt.*`). Extracts authorities from a
   configurable claim and renders auth failures as JSON.
-- **X-Roles header auth** (`XRolesAutoConfiguration`) — non-production only; reads
-  roles from the `X-Roles` header for local development.
+- **X-Roles header auth** (`XRolesAutoConfiguration`) — non-production only;
+  contributes an `HttpSecurityCustomizer` that inserts the header filter into
+  the chain before authorization.
 
 ## Usage
 
@@ -86,9 +87,17 @@ Both responses use `application/json`.
 
 In non-production profiles, send roles via a header instead of a token:
 ```
-X-Roles: admin,user
+X-Roles: gip,ors
 ```
-The filter populates the security context with the provided authorities.
+Roles are trimmed and upper-cased into authorities (`GIP`, `ORS`) — the same
+normalization the JWT converter applies. No `ROLE_` prefix is added, so match
+them with `hasAuthority('GIP')` / `hasAnyAuthority(...)`, not `hasRole`.
+
+The filter sits inside the shared `SecurityFilterChain` right before
+authorization, so header authorities satisfy URL rules and `@PreAuthorize`
+alike. With no prior authentication the filter authenticates the request as
+principal `x-roles-user`; with an existing authentication (e.g. JWT) it
+replaces the authorities while keeping the principal.
 
 ## Extending the chain
 
