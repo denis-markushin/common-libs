@@ -44,11 +44,13 @@ class XRolesAuthoritiesFilter : OncePerRequestFilter() {
             return
         }
 
-        val auth: Authentication = SecurityContextHolder.getContext().authentication
-
-        SecurityContextHolder.getContext().apply {
-            this.authentication = UsernamePasswordAuthenticationToken(auth.principal, auth.credentials, authorities)
+        val existing: Authentication? = SecurityContextHolder.getContext().authentication
+        val updated = if (existing == null) {
+            UsernamePasswordAuthenticationToken("x-roles-user", null, authorities)
+        } else {
+            UsernamePasswordAuthenticationToken(existing.principal, existing.credentials, authorities)
         }
+        SecurityContextHolder.getContext().authentication = updated
 
         filterChain.doFilter(request, response)
     }
