@@ -8,7 +8,7 @@ import assertk.assertions.isNull
 import org.dema.servicecore.properties.DemaLogbookProperties
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.zalando.logbook.autoconfigure.LogbookAutoConfiguration
 

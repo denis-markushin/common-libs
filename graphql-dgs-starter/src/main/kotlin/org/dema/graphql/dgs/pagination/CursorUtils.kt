@@ -1,16 +1,17 @@
 package org.dema.graphql.dgs.utils
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.cfg.DateTimeFeature
+import tools.jackson.module.kotlin.jacksonMapperBuilder
+import tools.jackson.module.kotlin.readValue
 import java.nio.charset.StandardCharsets
 import java.util.Base64
 
 private val objectMapper: ObjectMapper =
-    jacksonObjectMapper()
-        .findAndRegisterModules()
-        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+    jacksonMapperBuilder()
+        .findAndAddModules()
+        .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+        .build()
 
 /**
  * Utility object for encoding and decoding relay cursors to and from Base64.

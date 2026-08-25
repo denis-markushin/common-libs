@@ -4,7 +4,6 @@ import assertk.assertThat
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.getBean
@@ -17,9 +16,10 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.transaction.PlatformTransactionManager
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
+import tools.jackson.databind.ObjectMapper
 import javax.sql.DataSource
 
 /**

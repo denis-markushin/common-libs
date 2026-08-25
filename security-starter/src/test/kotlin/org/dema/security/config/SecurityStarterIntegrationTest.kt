@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package org.dema.security.config
 
 import assertk.assertThat

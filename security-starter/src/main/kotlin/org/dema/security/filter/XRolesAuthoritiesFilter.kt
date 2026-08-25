@@ -15,14 +15,15 @@ private const val AUTHORITIES_HEADER = "X-Roles"
 /**
  * A servlet filter that turns the `X-Roles` header into the request's
  * [Authentication] authorities: it replaces the authorities of an existing
- * authentication, or creates a new one for principal `x-roles-user` when the
- * security context is empty.
+ * authentication, falling back to the principal `x-roles-user` whenever the
+ * security context is empty or its authentication carries no principal.
  */
 class XRolesAuthoritiesFilter : OncePerRequestFilter() {
     /**
      * Replaces the current authentication's authorities with those parsed from
-     * the `X-Roles` header, creating an `x-roles-user` authentication if none
-     * exists; leaves the context untouched when the header yields no values.
+     * the `X-Roles` header, using the `x-roles-user` principal when no
+     * authentication or no principal is present; leaves the context untouched
+     * when the header yields no values.
      */
     override fun doFilterInternal(
         request: HttpServletRequest,
@@ -51,7 +52,7 @@ class XRolesAuthoritiesFilter : OncePerRequestFilter() {
         val updated = if (existing == null) {
             UsernamePasswordAuthenticationToken("x-roles-user", null, authorities)
         } else {
-            UsernamePasswordAuthenticationToken(existing.principal, existing.credentials, authorities)
+            UsernamePasswordAuthenticationToken(existing.principal ?: "x-roles-user", existing.credentials, authorities)
         }
         SecurityContextHolder.getContext().authentication = updated
 

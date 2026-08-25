@@ -20,7 +20,7 @@ class JwtAuthenticationEntryPoint : AuthenticationEntryPoint {
     override fun commence(
         request: HttpServletRequest,
         response: HttpServletResponse,
-        authException: AuthenticationException?,
+        authException: AuthenticationException,
     ) {
         response.characterEncoding = Charsets.UTF_8.name()
         response.setHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)

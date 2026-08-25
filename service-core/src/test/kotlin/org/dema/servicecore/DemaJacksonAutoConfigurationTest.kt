@@ -5,13 +5,14 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isTrue
 import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.databind.DeserializationFeature
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.SerializationFeature
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import tools.jackson.databind.DeserializationFeature
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.cfg.DateTimeFeature
+import tools.jackson.databind.cfg.EnumFeature
 import java.time.LocalDateTime
 import java.util.TimeZone
 
@@ -37,7 +38,7 @@ class DemaJacksonAutoConfigurationTest {
     fun `READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE is enabled`() {
         contextRunner.run { ctx ->
             val mapper = ctx.getBean(ObjectMapper::class.java)
-            assertThat(mapper.isEnabled(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE)).isTrue()
+            assertThat(mapper.isEnabled(EnumFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE)).isTrue()
         }
     }
 
@@ -53,7 +54,7 @@ class DemaJacksonAutoConfigurationTest {
     fun `WRITE_DATES_AS_TIMESTAMPS is disabled`() {
         contextRunner.run { ctx ->
             val mapper = ctx.getBean(ObjectMapper::class.java)
-            assertThat(mapper.isEnabled(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)).isFalse()
+            assertThat(mapper.isEnabled(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)).isFalse()
         }
     }
 
@@ -61,7 +62,7 @@ class DemaJacksonAutoConfigurationTest {
     fun `WRITE_DURATIONS_AS_TIMESTAMPS is disabled`() {
         contextRunner.run { ctx ->
             val mapper = ctx.getBean(ObjectMapper::class.java)
-            assertThat(mapper.isEnabled(SerializationFeature.WRITE_DURATIONS_AS_TIMESTAMPS)).isFalse()
+            assertThat(mapper.isEnabled(DateTimeFeature.WRITE_DURATIONS_AS_TIMESTAMPS)).isFalse()
         }
     }
 
@@ -69,7 +70,7 @@ class DemaJacksonAutoConfigurationTest {
     fun `serialization inclusion is NON_NULL`() {
         contextRunner.run { ctx ->
             val mapper = ctx.getBean(ObjectMapper::class.java)
-            assertThat(mapper.serializationConfig.defaultPropertyInclusion.valueInclusion)
+            assertThat(mapper.serializationConfig().defaultPropertyInclusion.valueInclusion)
                 .isEqualTo(JsonInclude.Include.NON_NULL)
         }
     }
@@ -78,7 +79,7 @@ class DemaJacksonAutoConfigurationTest {
     fun `default timezone is UTC`() {
         contextRunner.run { ctx ->
             val mapper = ctx.getBean(ObjectMapper::class.java)
-            assertThat(mapper.serializationConfig.timeZone)
+            assertThat(mapper.serializationConfig().timeZone)
                 .isEqualTo(TimeZone.getTimeZone("UTC"))
         }
     }

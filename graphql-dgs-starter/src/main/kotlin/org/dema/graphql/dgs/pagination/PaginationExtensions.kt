@@ -85,4 +85,4 @@ private fun <T> emptyConnection(): Connection<T> {
  * @throws org.springframework.core.convert.ConversionFailedException if the conversion fails
  * @see ConversionService.convert
  */
-inline fun <reified T> ConversionService.convert(src: Any?): T? = src?.let { this.convert(src, T::class.java) }
+inline fun <reified T : Any> ConversionService.convert(src: Any?): T? = src?.let { this.convert(src, T::class.java) }

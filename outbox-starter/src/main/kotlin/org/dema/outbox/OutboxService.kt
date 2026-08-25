@@ -1,6 +1,6 @@
 package org.dema.outbox
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
 

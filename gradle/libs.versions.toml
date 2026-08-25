@@ -1,24 +1,24 @@
 [versions]
-gradle = "9.1.0"
+gradle = "9.7.1"
 
 dema-plugins = "0.2.0"
 
 # BOMs
-spring-boot = "3.4.9"
-spring-cloud = "2024.0.2"
-netflix-dgs = "10.1.2"
+spring-boot = "4.0.8"
+spring-cloud = "2025.1.3"
+netflix-dgs = "12.0.1"
 
 # Third party libs
-kotlin-logging = "7.0.5"
+kotlin-logging = "8.0.4"
 
 # Spring Boot
-spring-doc = "2.7.0"
+spring-doc = "3.0.3"
 
 # Test
 assertk = "0.28.1"
-kotest = "5.9.0"
-mockk = "1.13.8"
-springMockk = "4.0.2"
+kotest = "6.2.4"
+mockk = "1.14.11"
+springMockk = "5.0.1"
 
 [libraries]
 # BOMs
@@ -28,11 +28,11 @@ netflix-dgs-dependencies = { module = "com.netflix.graphql.dgs:graphql-dgs-platf
 
 # Third party libs
 kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "kotlin-logging" }
-jaywayJsonPath = { module = "com.jayway.jsonpath:json-path", version = "2.9.0" }
+jaywayJsonPath = { module = "com.jayway.jsonpath:json-path", version = "3.0.0" }
 
 # Sring Boot
 spring-doc = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "spring-doc" }
-logbook = { module = "org.zalando:logbook-spring-boot-starter", version = "3.12.3" }
+logbook = { module = "org.zalando:logbook-spring-boot-starter", version = "4.1.0" }
 
 # Test libs
 assertk = { module = "com.willowtreeapps.assertk:assertk-jvm", version.ref = "assertk" }
@@ -41,7 +41,7 @@ mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 springmock = { module = "com.ninja-squad:springmockk", version.ref = "springMockk" }
 
 [plugins]
-vanniktechMavenPublish = { id = "com.vanniktech.maven.publish", version = "0.36.0" }
+vanniktechMavenPublish = { id = "com.vanniktech.maven.publish", version = "0.37.0" }
 vercraft = { id = "com.akuleshov7.vercraft.plugin-gradle", version = "0.8.0" }
 dema-spotless = { id = "io.github.denis-markushin.spotless", version.ref = "dema-plugins" }
 dema-kotlinLibrary = { id = "io.github.denis-markushin.kotlin-library", version.ref = "dema-plugins" }

@@ -12,7 +12,7 @@ import org.dema.jooq.timestamps.TimestampsProperties
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
-import org.springframework.boot.autoconfigure.jooq.DefaultConfigurationCustomizer
+import org.springframework.boot.jooq.autoconfigure.DefaultConfigurationCustomizer
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import java.time.Clock
