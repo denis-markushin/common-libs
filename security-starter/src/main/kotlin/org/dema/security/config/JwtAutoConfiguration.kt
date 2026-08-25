@@ -7,8 +7,8 @@ import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigureAfter
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
-import org.springframework.boot.autoconfigure.security.oauth2.resource.servlet.OAuth2ResourceServerAutoConfiguration
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.web.AuthenticationEntryPoint

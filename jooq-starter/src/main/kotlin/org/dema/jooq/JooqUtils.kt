@@ -145,7 +145,7 @@ object JooqUtils {
      * into the specified target type [T].
      * The pagination metadata includes the total row count and current page.
      */
-    fun <T> paginate(
+    fun <T : Any> paginate(
         ctx: DSLContext,
         original: Select<*>,
         sort: Array<Field<*>>,
@@ -180,7 +180,7 @@ object JooqUtils {
      * into the specified target table [T].
      * The pagination metadata includes the total row count and current page.
      */
-    fun <T : Record?> paginate(
+    fun <T : Record> paginate(
         ctx: DSLContext,
         original: Select<*>,
         sort: Array<Field<*>>,
@@ -215,7 +215,7 @@ object JooqUtils {
      * into the specified target table [T].
      * The pagination metadata includes the total row count and current page.
      */
-    fun <T : Record?> paginate(
+    fun <T : Record> paginate(
         ctx: DSLContext,
         original: Select<*>,
         sort: Array<SortField<*>>,
@@ -283,7 +283,7 @@ object JooqUtils {
      * This method performs pagination on the provided query by adding sorting fields and pageable information.
      * The results are mapped into the specified target table [T], and pagination metadata includes the total row count.
      */
-    fun <T : Record?> paginate(
+    fun <T : Record> paginate(
         ctx: DSLContext,
         original: Select<*>,
         sort: Array<Field<*>>,
@@ -347,7 +347,7 @@ object JooqUtils {
      * It also handles sorting directions to provide
      * the correct order of results.
      */
-    fun <T : Record?> paginate(
+    fun <T : Record> paginate(
         ctx: DSLContext,
         original: Select<*>,
         sort: Array<SortField<*>>,

@@ -23,7 +23,7 @@ import java.util.concurrent.Executor
  * @param executor executor used to run the batch function asynchronously
  * @param loaderFn function that receives a set of keys and returns a map of found values (keys not found must be absent)
  */
-abstract class AbstractBatchLoader<K, V>(
+abstract class AbstractBatchLoader<K : Any, V : Any>(
     private val executor: Executor,
     private val loaderFn: (Set<K>) -> Map<K, V>,
 ) : MappedBatchLoader<K, V> {

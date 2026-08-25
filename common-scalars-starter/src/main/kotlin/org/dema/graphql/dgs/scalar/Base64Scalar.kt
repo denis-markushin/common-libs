@@ -36,8 +36,9 @@ class Base64Scalar : Coercing<String, String> {
 
     override fun parseLiteral(input: Value<*>, variables: CoercedVariables, graphQLContext: GraphQLContext, locale: Locale): String =
         if (input is StringValue) {
-            validate(input.value)
-            String(Base64.getDecoder().decode(input.value))
+            val value = input.value ?: throw CoercingParseLiteralException("Value '$input' has incorrect format")
+            validate(value)
+            String(Base64.getDecoder().decode(value))
         } else {
             throw CoercingParseLiteralException("Value '$input' has incorrect format")
         }

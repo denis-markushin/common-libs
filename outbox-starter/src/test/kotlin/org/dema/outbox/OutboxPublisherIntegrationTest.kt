@@ -18,9 +18,9 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.support.SendResult
 import org.springframework.transaction.support.TransactionTemplate
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.sql.Timestamp
 import java.util.UUID
 import java.util.concurrent.CompletableFuture

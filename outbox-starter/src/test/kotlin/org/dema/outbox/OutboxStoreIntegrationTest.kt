@@ -17,9 +17,9 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.jdbc.datasource.SingleConnectionDataSource
 import org.springframework.transaction.support.TransactionTemplate
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.util.UUID
 
 @Testcontainers
@@ -117,14 +117,14 @@ class OutboxStoreIntegrationTest {
                 // Tx B fetches the next 2 rows; skip-locked must hand it the OTHER rows.
                 val idsB = txB.execute {
                     storeB.fetchUnpublished(limit = 2, maxAttempts = 5).map { it.id }
-                }!!
+                }
 
                 assertThat(lockedByA).hasSize(2)
                 assertThat(idsB).hasSize(2)
                 assertThat((lockedByA.toSet() + idsB.toSet())).hasSize(4)
                 assertThat(lockedByA.intersect(idsB.toSet())).hasSize(0)
                 lockedByA
-            }!!
+            }
 
             assertThat(idsA).hasSize(2)
         } finally {

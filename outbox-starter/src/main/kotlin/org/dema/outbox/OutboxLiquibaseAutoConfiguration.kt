@@ -8,8 +8,8 @@ import liquibase.resource.ClassLoaderResourceAccessor
 import org.springframework.beans.factory.InitializingBean
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
-import org.springframework.boot.autoconfigure.liquibase.LiquibaseAutoConfiguration
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+import org.springframework.boot.liquibase.autoconfigure.LiquibaseAutoConfiguration
 import org.springframework.context.annotation.Bean
 import javax.sql.DataSource
 

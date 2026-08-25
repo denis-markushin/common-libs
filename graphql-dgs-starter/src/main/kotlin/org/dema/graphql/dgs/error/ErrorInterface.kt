@@ -14,8 +14,10 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo
  * via a classpath scan of all Spring Boot auto-configuration packages.
  *
  * Polymorphic JSON deserialization is wired through the GraphQL `__typename`
- * meta-field so the DGS test client (and any Jackson-based consumer) can
- * deserialize a typed error payload back into the correct subtype.
+ * meta-field: the starter contributes the subtypes both to the application's
+ * Jackson mapper and to the `DgsJsonMapper` that backs
+ * `DgsQueryExecutor.executeAndExtractJsonPathAsObject`, so a typed error
+ * payload deserializes back into the correct subtype.
  */
 @JsonTypeInfo(use = JsonTypeInfo.Id.NAME, include = JsonTypeInfo.As.EXISTING_PROPERTY, property = "__typename", visible = false)
 interface ErrorInterface {

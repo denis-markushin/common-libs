@@ -16,7 +16,7 @@ dependencies {
     }
     api("org.springframework.boot:spring-boot-starter-jetty")
     api("org.springframework.boot:spring-boot-starter-validation")
-    api("com.fasterxml.jackson.module:jackson-module-kotlin")
+    api("tools.jackson.module:jackson-module-kotlin")
     api(libs.kotlin.logging)
     api(libs.spring.doc)
 
