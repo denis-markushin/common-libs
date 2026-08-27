@@ -8,7 +8,7 @@ subprojects {
     apply(plugin = "publishing-convention")
 }
 
-configure(subprojects.filterNot { it == project(":bom") }) {
+configure(subprojects.filterNot { it == project(":bom") || it == project(":catalog") }) {
     apply(plugin = "kotlin-library-convention")
 
     dependencies {
