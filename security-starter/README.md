@@ -16,6 +16,9 @@ authenticated) and offers pluggable authentication mechanisms.
   `JwtDecoder` is present (i.e. when the application configures
   `spring.security.oauth2.resourceserver.jwt.*`). Extracts authorities from a
   configurable claim and renders auth failures as JSON.
+- **Current user** (`CurrentUser`) — resolves the caller's id from the JWT
+  `sub` claim. `idOrNull()` for code that tolerates an anonymous request,
+  `id()` for code that does not. See below.
 - **X-Roles header auth** (`XRolesAutoConfiguration`) — non-production only;
   contributes an `HttpSecurityCustomizer` that inserts the header filter into
   the chain before authorization.
@@ -122,3 +125,29 @@ point, and the JWT customizer are all `@ConditionalOnMissingBean`.
 |---------------------------------|----------------|------------------------------------------------------|
 | `dema.security.permit-all`      | `[]`           | Extra ant patterns served without authentication.    |
 | `dema.security.jwt.roles-claim` | `realm_access` | JWT claim holding user roles (flattened).            |
+
+## Current user
+
+`CurrentUser` is registered by `BaseSecurityAutoConfiguration` and reads the
+principal out of the security context:
+
+```kotlin
+@Service
+class CommentService(private val currentUser: CurrentUser) {
+
+    fun add(text: String): Comment = repo.save(text, author = currentUser.id())
+}
+```
+
+The `sub` claim is read as a UUID. A request authenticated by something other
+than a JWT, or carrying a subject that is not a UUID, counts as no caller at
+all: `idOrNull()` returns `null` and `id()` throws
+`AuthenticationCredentialsNotFoundException`, which the entry point renders as
+401. Absent credentials are an authentication failure, not an authorization one,
+so it is deliberately not `AccessDeniedException` and deliberately not 403.
+
+When the subject is present but unparseable, the exception message names it, so
+a misconfigured client or a service account issued a non-UUID subject can be told
+apart from an unauthenticated call.
+
+Override the bean to change any of this — it is `@ConditionalOnMissingBean`.
