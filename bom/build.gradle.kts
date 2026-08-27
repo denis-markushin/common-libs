@@ -16,6 +16,7 @@ dependencies {
     constraints {
         // Third party libs
         api(libs.jaywayJsonPath)
+        api(libs.minio)
         // Test
         api(libs.assertk)
         api(libs.kotest.assertions)

@@ -8,6 +8,7 @@ include(
     "common-scalars-starter",
     "service-core",
     "outbox-starter",
+    "minio-starter",
 )
 
 pluginManagement {

@@ -29,6 +29,7 @@ netflix-dgs-dependencies = { module = "com.netflix.graphql.dgs:graphql-dgs-platf
 # Third party libs
 kotlin-logging = { module = "io.github.oshai:kotlin-logging-jvm", version.ref = "kotlin-logging" }
 jaywayJsonPath = { module = "com.jayway.jsonpath:json-path", version = "3.0.0" }
+minio = { module = "io.minio:minio", version = "8.5.17" }
 
 # Sring Boot
 spring-doc = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "spring-doc" }
