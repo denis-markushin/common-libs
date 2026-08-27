@@ -9,6 +9,7 @@ include(
     "service-core",
     "outbox-starter",
     "minio-starter",
+    "catalog",
 )
 
 pluginManagement {
