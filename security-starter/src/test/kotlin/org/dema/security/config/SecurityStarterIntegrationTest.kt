@@ -49,11 +49,14 @@ class SecurityStarterIntegrationTest {
 
     @Test
     fun `x-roles filter sits in the chain before authorization`() {
-        runner.withConfiguration(AutoConfigurations.of(XRolesAutoConfiguration::class.java)).run { context ->
-            val filters = context.getBean<SecurityFilterChain>().filters
-            val xRoles = filters.indexOfFirst { it is XRolesAuthoritiesFilter }
-            val authz = filters.indexOfFirst { it is AuthorizationFilter }
-            assertThat(xRoles).isBetween(0, authz - 1)
-        }
+        runner
+            .withConfiguration(AutoConfigurations.of(XRolesAutoConfiguration::class.java))
+            .withPropertyValues("dema.security.x-roles.enabled=true")
+            .run { context ->
+                val filters = context.getBean<SecurityFilterChain>().filters
+                val xRoles = filters.indexOfFirst { it is XRolesAuthoritiesFilter }
+                val authz = filters.indexOfFirst { it is AuthorizationFilter }
+                assertThat(xRoles).isBetween(0, authz - 1)
+            }
     }
 }

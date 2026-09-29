@@ -19,9 +19,9 @@ authenticated) and offers pluggable authentication mechanisms.
 - **Current user** (`CurrentUser`) — resolves the caller's id from the JWT
   `sub` claim. `idOrNull()` for code that tolerates an anonymous request,
   `id()` for code that does not. See below.
-- **X-Roles header auth** (`XRolesAutoConfiguration`) — non-production only;
-  contributes an `HttpSecurityCustomizer` that inserts the header filter into
-  the chain before authorization.
+- **X-Roles header auth** (`XRolesAutoConfiguration`) — opt-in, never in
+  `prod` / `production`; contributes an `HttpSecurityCustomizer` that inserts
+  the header filter into the chain before authorization.
 
 ## Usage
 
@@ -29,8 +29,8 @@ Add the dependency:
 ```kotlin
 implementation("io.github.denis-markushin:security-starter:x.x.x")
 ```
-The base chain and X-Roles filter work out of the box. No extra configuration is
-required for local development.
+The base chain works out of the box. The X-Roles filter is off until you opt in
+(see below).
 
 ### Extra public paths
 
@@ -88,7 +88,28 @@ Both responses use `application/json`.
 
 ### X-Roles header (local development)
 
-In non-production profiles, send roles via a header instead of a token:
+The header mechanism trusts whatever roles the client sends, so it is opt-in.
+It turns on when either holds:
+
+- the `local` or `integration-test` profile is active;
+- `dema.security.x-roles.enabled=true`.
+
+Any other profile, including no profile at all, leaves it off. The `prod` and
+`production` profiles veto it even when the property is set.
+
+> **Behavior change.** Earlier versions enabled the header in every profile
+> except `prod` / `production`, including when no profile was active. A
+> service or test suite that relies on the header under another profile
+> (`dev`, `test`, a custom one) must now opt in with the property, e.g. in
+> `application-test.yml`:
+> ```yaml
+> dema:
+>   security:
+>     x-roles:
+>       enabled: true
+> ```
+
+Once enabled, send roles via a header instead of a token:
 ```
 X-Roles: gip,ors
 ```
@@ -125,6 +146,7 @@ point, and the JWT customizer are all `@ConditionalOnMissingBean`.
 |---------------------------------|----------------|------------------------------------------------------|
 | `dema.security.permit-all`      | `[]`           | Extra ant patterns served without authentication.    |
 | `dema.security.jwt.roles-claim` | `realm_access` | JWT claim holding user roles (flattened).            |
+| `dema.security.x-roles.enabled` | `false`        | Enables X-Roles header auth outside dev profiles.    |
 
 ## Current user
 
