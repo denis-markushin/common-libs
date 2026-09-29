@@ -5,6 +5,7 @@ import graphql.schema.DataFetchingEnvironment
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.oshai.kotlinlogging.Level
 import org.dema.graphql.dgs.error.mapper.CompositeGraphQLErrorMapper
+import org.slf4j.event.Level as Slf4jLevel
 
 private val log = KotlinLogging.logger {}
 
@@ -30,5 +31,5 @@ internal class DefaultMutationResolver(
         }
 
     private fun level(e: Exception): Level =
-        Level.valueOf(((e as? DgsException)?.logLevel ?: org.slf4j.event.Level.ERROR).name)
+        Level.valueOf(((e as? DgsException)?.logLevel ?: Slf4jLevel.ERROR).name)
 }
