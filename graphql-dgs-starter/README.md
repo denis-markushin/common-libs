@@ -208,8 +208,8 @@ An exception no mapper recognizes becomes a `RuntimeError` with the fixed
 message `Internal server error`. Its message and type never reach the
 client, since a database driver message such as PostgreSQL's
 `Detail: Key (email)=(...) already exists` or `Failing row contains (...)`
-carries row values. Every failure is logged with the full cause chain (see
-[Logging](#logging)), so the details stay in the server log.
+carries row values. The failure itself is logged with the full cause chain
+(see [Logging](#logging)), so the details stay in the server log.
 
 The top-level `errors[]` of every query, and of every mutation whose client
 does not select the typed `error` field, follows the same rule. The starter
@@ -245,13 +245,15 @@ reports only the error line, e.g. the violated constraint, without the
 
 ### Logging
 
-Each failure is logged once. On the typed path `DefaultMutationResolver`
+A failure is logged at most once. On the typed path `DefaultMutationResolver`
 logs `Mutation failed: <field>`; on the rethrow path, and for every query,
 DGS's handler logs `Exception while executing data fetcher for <path>`.
 Both pick the level the same way: a `DgsException` at its `logLevel`,
-anything else at `ERROR`. The built-in exceptions log at `WARN`; a
-`DgsException` of your own picks its level through the `logLevel`
-constructor argument.
+anything else at `ERROR`. The six exceptions under
+`org.dema.graphql.dgs.error.exception` log at `WARN`;
+`DgsEntityNotFoundException` and Spring Security's exceptions log at
+`ERROR`. A `DgsException` of your own picks its level through the
+`logLevel` constructor argument.
 
 An exception resolved by a `DataFetcherExceptionResolver` bean, which
 spring-graphql consults before DGS's handler, is not logged on the rethrow
@@ -260,7 +262,11 @@ path, just as for a query. A consumer that declares its own
 
 > **Behavior change.** The built-in exceptions used to log at `ERROR` in
 > DGS's handler, and a failed mutation whose client did not select the
-> typed `error` field was logged twice: at `WARN`, then at `ERROR`.
+> typed `error` field was logged twice: at `WARN`, then at `ERROR`. On the
+> typed path, a failure that is not a `DgsException` (Spring Security's
+> exceptions, exceptions classified by your own `GraphQLErrorMapper`) now
+> logs at `ERROR` instead of `WARN`, as DGS's handler logs it on the
+> rethrow path.
 
 ### Setup
 
@@ -406,7 +412,8 @@ class CustomErrorConfig {
 
 ### Adding a brand-new exception type to the starter (for contributors)
 
-1. Add the exception class under `org.dema.graphql.dgs.exception`.
+1. Add the exception class under `org.dema.graphql.dgs.exception`, passing
+   `logLevel = Level.WARN` (`org.slf4j.event.Level`) to `DgsException`.
 2. Add the error `data class` under `org.dema.graphql.dgs.error` and, if the
    error is wire-visible, the matching GraphQL type in
    `src/main/resources/schema/common-errors.graphqls`.
