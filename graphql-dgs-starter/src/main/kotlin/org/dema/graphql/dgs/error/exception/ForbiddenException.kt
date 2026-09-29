@@ -2,6 +2,7 @@ package org.dema.graphql.dgs.error.exception
 
 import com.netflix.graphql.dgs.exceptions.DgsException
 import com.netflix.graphql.types.errors.ErrorType
+import org.slf4j.event.Level
 
 /**
  * Thrown when an authenticated caller is not permitted to perform the requested operation
@@ -13,4 +14,4 @@ import com.netflix.graphql.types.errors.ErrorType
 open class ForbiddenException(
     message: String = "Forbidden",
     cause: Exception? = null,
-) : DgsException(message = message, cause = cause, errorType = ErrorType.PERMISSION_DENIED)
+) : DgsException(message = message, cause = cause, errorType = ErrorType.PERMISSION_DENIED, logLevel = Level.WARN)

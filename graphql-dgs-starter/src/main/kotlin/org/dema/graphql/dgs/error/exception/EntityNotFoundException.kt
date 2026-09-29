@@ -2,6 +2,7 @@ package org.dema.graphql.dgs.error.exception
 
 import com.netflix.graphql.dgs.exceptions.DgsException
 import com.netflix.graphql.types.errors.ErrorType
+import org.slf4j.event.Level
 
 /**
  * Thrown when a requested domain entity cannot be located by its identifier or query criteria.
@@ -17,4 +18,5 @@ open class EntityNotFoundException(
     message = message ?: "$entityType not found${entityId?.let { ": $it" } ?: ""}",
     cause = cause,
     errorType = ErrorType.NOT_FOUND,
+    logLevel = Level.WARN,
 )
