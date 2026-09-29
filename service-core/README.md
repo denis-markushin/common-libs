@@ -49,3 +49,35 @@ fun logbookStrategy(): Strategy = object : Strategy {
 `requestTo` comes from `org.zalando.logbook.core.Conditions`.
 
 Set `logbook.enabled=false` to turn exchange logging off entirely.
+
+## Actuator
+
+Only `health` and `prometheus` are exposed over HTTP. They are what the
+platform relies on: health checks call `/actuator/health`, and Prometheus
+scrapes `/actuator/prometheus`.
+
+Every other endpoint stays off by default. `env`, `configprops` and
+`threaddump` reveal configuration, a heap dump holds every secret the
+application has loaded, and `loggers` accepts writes that change log levels at
+runtime. With `security-starter` on the classpath, the health and Prometheus
+paths are the only actuator paths served without authentication.
+
+> **Behavior change.** Earlier versions exposed every endpoint
+> (`management.endpoints.web.exposure.include=*`). A service that calls
+> anything other than `health` or `prometheus` must opt in as shown below.
+
+### Exposing more endpoints
+
+List the full set; the property replaces the default, so keep `health` and
+`prometheus` in it:
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+```
+An endpoint exposed this way still requires authentication under
+`security-starter`; add it to `dema.security.permit-all` to make it public.
+`heapdump` also has default access `none` in Spring Boot 4, so it needs
+`management.endpoint.heapdump.access` as well.
