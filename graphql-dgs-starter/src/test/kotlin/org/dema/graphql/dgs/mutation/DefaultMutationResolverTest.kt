@@ -3,8 +3,14 @@ package org.dema.graphql.dgs.mutation
 import assertk.assertFailure
 import assertk.assertThat
 import assertk.assertions.hasMessage
+import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import com.netflix.graphql.dgs.exceptions.DgsException
 import graphql.language.Field
 import graphql.schema.DataFetchingEnvironment
 import graphql.schema.DataFetchingFieldSelectionSet
@@ -13,6 +19,9 @@ import io.mockk.mockk
 import org.dema.graphql.dgs.error.RuntimeError
 import org.dema.graphql.dgs.error.mapper.CompositeGraphQLErrorMapper
 import org.junit.jupiter.api.Test
+import org.slf4j.LoggerFactory
+import java.util.UUID
+import org.slf4j.event.Level as EventLevel
 
 class DefaultMutationResolverTest {
 
@@ -68,4 +77,52 @@ class DefaultMutationResolverTest {
             with(resolver) { dfe.resolveMutation<Int> { throw cancel } }
         }.isInstanceOf(java.util.concurrent.CancellationException::class).hasMessage("cancelled")
     }
+
+    @Test
+    fun `failure without error selected writes no log event`() {
+        val dfe = dfeWithErrorSelected(errorSelected = false)
+        val events = captured()
+        runCatching {
+            with(resolver) { dfe.resolveMutation<Int> { throw IllegalStateException("Row ${UUID.randomUUID()}") } }
+        }
+        assertThat(events.list).isEmpty()
+    }
+
+    @Test
+    fun `failure with error selected logs unclassified exception at ERROR`() {
+        val dfe = dfeWithErrorSelected(errorSelected = true)
+        every { errorMapper.toGraphQLError(any()) } returns RuntimeError(message = "Internal server error")
+        val events = captured()
+        with(resolver) { dfe.resolveMutation<Int> { throw IllegalStateException("Row ${UUID.randomUUID()}") } }
+        assertThat(events.list.single().level).isEqualTo(Level.ERROR)
+    }
+
+    @Test
+    fun `failure with error selected logs DgsException at its own level`() {
+        val dfe = dfeWithErrorSelected(errorSelected = true)
+        every { errorMapper.toGraphQLError(any()) } returns RuntimeError(message = "Internal server error")
+        val events = captured()
+        with(resolver) {
+            dfe.resolveMutation<Int> {
+                throw object : DgsException(message = "Quota ${UUID.randomUUID()}", logLevel = EventLevel.INFO) {}
+            }
+        }
+        assertThat(events.list.single().level).isEqualTo(Level.INFO)
+    }
+
+    @Test
+    fun `failure with error selected logs the cause`() {
+        val dfe = dfeWithErrorSelected(errorSelected = true)
+        val message = "Row ${UUID.randomUUID()}"
+        every { errorMapper.toGraphQLError(any()) } returns RuntimeError(message = "Internal server error")
+        val events = captured()
+        with(resolver) { dfe.resolveMutation<Int> { throw IllegalStateException(message) } }
+        assertThat(events.list.single().throwableProxy.message).isEqualTo(message)
+    }
 }
+
+private fun captured(): ListAppender<ILoggingEvent> =
+    ListAppender<ILoggingEvent>().also {
+        it.start()
+        (LoggerFactory.getLogger("org.dema.graphql.dgs.mutation.DefaultMutationResolver") as Logger).addAppender(it)
+    }
