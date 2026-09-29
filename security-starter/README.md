@@ -2,15 +2,17 @@
 
 Spring Security auto-configuration shared across services. It owns a single
 `SecurityFilterChain` with sensible defaults (CSRF disabled, stateless sessions,
-Swagger / Actuator / GraphQL / internal endpoints public, everything else
-authenticated) and offers pluggable authentication mechanisms.
+Swagger / GraphQL / internal endpoints and the actuator health and Prometheus
+endpoints public, everything else authenticated) and offers pluggable
+authentication mechanisms.
 
 ## What you get
 
 - **Base filter chain** (`BaseSecurityAutoConfiguration`) — CSRF off, `STATELESS`
   sessions, `permitAll` for `/swagger-ui/**`, `/v3/api-docs/**`,
-  `/swagger-ui.html`, `/actuator/**`, `/graphql`, `/internal/**`, and
-  `authenticated` for any other request. `@EnableMethodSecurity` is on.
+  `/swagger-ui.html`, `/actuator/health/**`, `/actuator/prometheus`,
+  `/graphql`, `/internal/**`, and `authenticated` for any other request,
+  including every other actuator endpoint. `@EnableMethodSecurity` is on.
   Extra public paths can be added via `dema.security.permit-all` (see below).
 - **JWT authentication** (`JwtAutoConfiguration`) — activates automatically when a
   `JwtDecoder` is present (i.e. when the application configures
@@ -43,6 +45,28 @@ dema:
       - /api/v1/provider/**
       - /dev/sign/**
 ```
+
+### Actuator endpoints
+
+Only the health probes (`/actuator/health`, `/actuator/health/**`) and the
+Prometheus scrape (`/actuator/prometheus`) are public. Every other actuator
+endpoint requires authentication: `env`, `configprops`, `threaddump` and
+`heapdump` reveal configuration and secrets, and `loggers` accepts writes.
+`service-core` exposes only `health` and `prometheus` over HTTP in the first
+place; see its README for how to expose more.
+
+An endpoint a service exposes on purpose stays behind authentication unless it
+is also listed as a public path:
+```yaml
+dema:
+  security:
+    permit-all:
+      - /actuator/info
+```
+> **Behavior change.** Earlier versions permitted `/actuator/**` anonymously.
+> A scraper or probe that calls any other actuator path is now rejected as
+> unauthenticated and must either send credentials or have the path listed
+> above.
 
 ### Enabling JWT authentication
 

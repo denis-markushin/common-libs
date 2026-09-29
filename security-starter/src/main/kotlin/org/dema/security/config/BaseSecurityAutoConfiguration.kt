@@ -17,8 +17,9 @@ import org.springframework.security.web.SecurityFilterChain
  * Basic Spring Security configuration that disables CSRF and exposes
  * a permissive default [SecurityFilterChain].
  *
- * All Swagger, actuator, GraphQL and internal endpoints are accessible
- * without authentication, while any other request requires the user to be
+ * Swagger, GraphQL and internal endpoints, the actuator health probes and the
+ * Prometheus scrape are accessible without authentication, while any other
+ * request, including every other actuator endpoint, requires the user to be
  * authenticated.
  */
 @AutoConfiguration
@@ -58,7 +59,8 @@ class BaseSecurityAutoConfiguration {
                 authorize("/swagger-ui/**", permitAll)
                 authorize("/v3/api-docs/**", permitAll)
                 authorize("/swagger-ui.html", permitAll)
-                authorize("/actuator/**", permitAll)
+                authorize("/actuator/health/**", permitAll)
+                authorize("/actuator/prometheus", permitAll)
                 authorize("/graphql", permitAll)
                 authorize("/internal/**", permitAll)
                 properties.permitAll.forEach { authorize(it, permitAll) }
