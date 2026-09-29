@@ -125,10 +125,10 @@ class DefaultMutationResolverTest {
         every { errorMapper.toGraphQLError(any()) } returns RuntimeError(message = "Internal server error")
         val events = captured()
         with(resolver) { dfe.resolveMutation<Int> { throw IllegalStateException(message) } }
-        assertThat(events.list.single().throwableProxy.message).isEqualTo(message)
+        assertThat(events.list.single().throwableProxy?.message).isEqualTo(message)
     }
 
-    @ParameterizedTest
+    @ParameterizedTest(name = "[{index}]")
     @MethodSource("starterExceptions")
     fun `failure with error selected logs starter exception at WARN`(boom: Exception) {
         val dfe = dfeWithErrorSelected(errorSelected = true)
