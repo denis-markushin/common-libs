@@ -1,5 +1,9 @@
 package org.dema.graphql.dgs.autoconfigure
 
+import com.netflix.graphql.dgs.exceptions.DefaultDataFetcherExceptionHandler
+import com.netflix.graphql.dgs.springgraphql.autoconfig.DgsSpringGraphQLAutoConfiguration
+import graphql.execution.DataFetcherExceptionHandler
+import org.dema.graphql.dgs.error.ConcealingDataFetcherExceptionHandler
 import org.dema.graphql.dgs.error.mapper.CompositeGraphQLErrorMapper
 import org.dema.graphql.dgs.error.mapper.ConflictErrorMapper
 import org.dema.graphql.dgs.error.mapper.ForbiddenErrorMapper
@@ -16,8 +20,13 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
 
-@AutoConfiguration
+@AutoConfiguration(before = [DgsSpringGraphQLAutoConfiguration::class])
 class GraphQLErrorAutoConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun dataFetcherExceptionHandler(): DataFetcherExceptionHandler =
+        ConcealingDataFetcherExceptionHandler(DefaultDataFetcherExceptionHandler())
 
     @Bean
     @ConditionalOnMissingBean
