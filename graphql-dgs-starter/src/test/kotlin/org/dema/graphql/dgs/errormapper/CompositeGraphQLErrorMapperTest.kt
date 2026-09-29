@@ -1,14 +1,15 @@
 package org.dema.graphql.dgs.errormapper
 
 import assertk.assertThat
+import assertk.assertions.doesNotContain
 import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import org.dema.graphql.dgs.error.ErrorInterface
 import org.dema.graphql.dgs.error.NotFoundError
-import org.dema.graphql.dgs.error.RuntimeError
 import org.dema.graphql.dgs.error.mapper.CompositeGraphQLErrorMapper
 import org.dema.graphql.dgs.error.mapper.GraphQLErrorMapper
 import org.junit.jupiter.api.Test
+import java.util.UUID
 
 class CompositeGraphQLErrorMapperTest {
 
@@ -26,25 +27,18 @@ class CompositeGraphQLErrorMapperTest {
     }
 
     @Test
-    fun `empty mapper list falls back to RuntimeError using exception message`() {
-        val composite = CompositeGraphQLErrorMapper(emptyList())
-        val result = composite.toGraphQLError(RuntimeException("boom"))
-        assertThat(result).isEqualTo(RuntimeError(message = "boom"))
-    }
-
-    @Test
-    fun `all-null mappers fall back to RuntimeError using class name when message is null`() {
+    fun `unmapped exception yields an error that hides the exception message`() {
+        val detail = "Key (email)=(${UUID.randomUUID()}@mail.test) already exists"
         val composite = CompositeGraphQLErrorMapper(listOf(nullMapper))
-        val result = composite.toGraphQLError(RuntimeException())
-        assertThat(result).isEqualTo(RuntimeError(message = "RuntimeException"))
+        assertThat(composite.toGraphQLError(IllegalStateException(detail)).message).doesNotContain(detail)
     }
 
     @Test
-    fun `falls back to literal Unknown error when message and simple name are both null`() {
+    fun `unmapped exception without a message yields an error that hides the exception type`() {
+        class LedgerRowConflictException : RuntimeException()
         val composite = CompositeGraphQLErrorMapper(emptyList())
-        val anonymous: Throwable = object : Throwable() {}
-        val result = composite.toGraphQLError(anonymous)
-        assertThat(result).isEqualTo(RuntimeError(message = "Unknown error"))
+        assertThat(composite.toGraphQLError(LedgerRowConflictException()).message)
+            .doesNotContain("LedgerRowConflictException")
     }
 
     private fun mapperOf(block: (Throwable) -> ErrorInterface?): GraphQLErrorMapper =
