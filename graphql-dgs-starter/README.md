@@ -184,7 +184,7 @@ rethrown and DGS's default error handling emits the matching `ErrorType`
 | `UnauthorizedError`       | `org.dema.graphql.dgs.error.UnauthorizedError`       | Caller is not authenticated.                                       |
 | `ForbiddenError`          | `org.dema.graphql.dgs.error.ForbiddenError`          | Caller lacks permission for the operation.                         |
 | `ServiceUnavailableError` | `org.dema.graphql.dgs.error.ServiceUnavailableError` | Service is temporarily unavailable (`retryAfterSeconds` optional). |
-| `RuntimeError`            | `org.dema.graphql.dgs.error.RuntimeError`            | Fallback for any unclassified exception.                           |
+| `RuntimeError`            | `org.dema.graphql.dgs.error.RuntimeError`            | Fallback for any unclassified exception; generic message only.     |
 
 ### Built-in exception types
 
@@ -200,6 +200,34 @@ rethrown and DGS's default error handling emits the matching `ErrorType`
 | `org.springframework.security.access.AccessDeniedException` (when Spring Security is on the classpath) | `ForbiddenError`          |
 | `org.dema.graphql.dgs.exception.ServiceUnavailableException`                                           | `ServiceUnavailableError` |
 | anything else                                                                                          | `RuntimeError`            |
+
+### Unclassified exceptions
+
+An exception no mapper recognizes becomes a `RuntimeError` with the fixed
+message `Internal server error`. Its message and type never reach the
+client, since a database driver message such as PostgreSQL's
+`Detail: Key (email)=(...) already exists` or `Failing row contains (...)`
+carries row values. `DefaultMutationResolver` logs every failure at `WARN`
+with the full cause chain, so the details stay in the server log.
+
+> **Behavior change.** Earlier versions copied the exception message (or its
+> class name) into `RuntimeError.message`. A client that parsed it must switch
+> to a typed error: subclass a built-in exception or register a mapper.
+
+The server log still receives those row values, as do DGS's top-level
+`errors[]` when the client does not select the typed `error` field. Strip
+them at the source by turning off the PostgreSQL driver's
+`logServerErrorDetail` (default `true`):
+```yaml
+spring:
+  datasource:
+    hikari:
+      data-source-properties:
+        logServerErrorDetail: false
+```
+or append `?logServerErrorDetail=false` to the JDBC URL. The driver then
+reports only the error line, e.g. the violated constraint, without the
+`Detail:` values.
 
 ### Setup
 
