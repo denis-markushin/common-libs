@@ -60,4 +60,5 @@ reaps them when the JVM exits.
 
 `MinioInitializer` publishes `minio.bucket` but does not create the bucket —
 that belongs to the code under test, and a test asserting on bucket bootstrapping
-needs it absent.
+needs it absent. It runs the community fork `pgsty/minio`, since the upstream
+`minio/minio` repository is no longer on Docker Hub.
