@@ -3,6 +3,7 @@ package org.dema.servicecore
 import assertk.assertThat
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
+import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotEmpty
 import assertk.assertions.isNull
 import org.dema.servicecore.properties.DemaLogbookProperties
@@ -10,7 +11,9 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.zalando.logbook.Strategy
 import org.zalando.logbook.autoconfigure.LogbookAutoConfiguration
+import org.zalando.logbook.core.WithoutBodyStrategy
 
 class DemaLogbookConfigurationTest {
 
@@ -22,7 +25,6 @@ class DemaLogbookConfigurationTest {
         contextRunner.run { ctx ->
             assertThat(ctx.getBeansOfType(DemaLogbookProperties::class.java)).isNotEmpty()
             assertThat(ctx.environment.getProperty("logbook.format.style")).isEqualTo("json")
-            assertThat(ctx.environment.getProperty("logbook.strategy")).isEqualTo("body-only-if-status-at-least")
         }
     }
 
@@ -55,6 +57,21 @@ class DemaLogbookConfigurationTest {
             )
             .run { ctx ->
                 assertThat(ctx.startupFailure).isNull()
+            }
+    }
+
+    @Test
+    fun `default strategy logs exchanges without bodies`() {
+        ApplicationContextRunner()
+            .withConfiguration(
+                AutoConfigurations.of(
+                    JacksonAutoConfiguration::class.java,
+                    DemaLogbookConfiguration::class.java,
+                    LogbookAutoConfiguration::class.java,
+                ),
+            )
+            .run { ctx ->
+                assertThat(ctx.getBean(Strategy::class.java)).isInstanceOf(WithoutBodyStrategy::class)
             }
     }
 
