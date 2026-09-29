@@ -2,6 +2,7 @@ package org.dema.graphql.dgs.error.exception
 
 import com.netflix.graphql.dgs.exceptions.DgsException
 import com.netflix.graphql.types.errors.ErrorType
+import org.slf4j.event.Level
 
 /**
  * Thrown when an inbound request violates a domain-level validation rule (invariants, format,
@@ -15,4 +16,4 @@ open class DomainValidationException(
     val path: String? = null,
     val value: Any? = null,
     cause: Exception? = null,
-) : DgsException(message = message, cause = cause, errorType = ErrorType.BAD_REQUEST)
+) : DgsException(message = message, cause = cause, errorType = ErrorType.BAD_REQUEST, logLevel = Level.WARN)

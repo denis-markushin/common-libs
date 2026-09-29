@@ -2,6 +2,7 @@ package org.dema.graphql.dgs.error.exception
 
 import com.netflix.graphql.dgs.exceptions.DgsException
 import com.netflix.graphql.types.errors.ErrorType
+import org.slf4j.event.Level
 
 /**
  * Thrown when a downstream dependency or the service itself is temporarily unable to handle the
@@ -14,4 +15,4 @@ open class ServiceUnavailableException(
     message: String = "Service unavailable",
     val retryAfterSeconds: Int? = null,
     cause: Exception? = null,
-) : DgsException(message = message, cause = cause, errorType = ErrorType.UNAVAILABLE)
+) : DgsException(message = message, cause = cause, errorType = ErrorType.UNAVAILABLE, logLevel = Level.WARN)

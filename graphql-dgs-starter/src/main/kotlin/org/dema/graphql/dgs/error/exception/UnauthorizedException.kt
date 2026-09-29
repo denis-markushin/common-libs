@@ -2,6 +2,7 @@ package org.dema.graphql.dgs.error.exception
 
 import com.netflix.graphql.dgs.exceptions.DgsException
 import com.netflix.graphql.types.errors.ErrorType
+import org.slf4j.event.Level
 
 /**
  * Thrown when a request lacks valid authentication credentials, or the presented credentials
@@ -13,4 +14,4 @@ import com.netflix.graphql.types.errors.ErrorType
 open class UnauthorizedException(
     message: String = "Unauthorized",
     cause: Exception? = null,
-) : DgsException(message = message, cause = cause, errorType = ErrorType.UNAUTHENTICATED)
+) : DgsException(message = message, cause = cause, errorType = ErrorType.UNAUTHENTICATED, logLevel = Level.WARN)

@@ -2,6 +2,7 @@ package org.dema.graphql.dgs.error.exception
 
 import com.netflix.graphql.dgs.exceptions.DgsException
 import com.netflix.graphql.types.errors.ErrorType
+import org.slf4j.event.Level
 
 /**
  * Thrown when a request cannot be completed because the current entity state conflicts with the
@@ -16,4 +17,4 @@ open class ConflictException(
     val entityType: String? = null,
     val entityId: Any? = null,
     cause: Exception? = null,
-) : DgsException(message = message, cause = cause, errorType = ErrorType.FAILED_PRECONDITION)
+) : DgsException(message = message, cause = cause, errorType = ErrorType.FAILED_PRECONDITION, logLevel = Level.WARN)

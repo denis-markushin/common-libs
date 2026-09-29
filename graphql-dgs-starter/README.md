@@ -208,19 +208,19 @@ An exception no mapper recognizes becomes a `RuntimeError` with the fixed
 message `Internal server error`. Its message and type never reach the
 client, since a database driver message such as PostgreSQL's
 `Detail: Key (email)=(...) already exists` or `Failing row contains (...)`
-carries row values. `DefaultMutationResolver` logs every failure at `WARN`
-with the full cause chain, so the details stay in the server log.
+carries row values. Every failure is logged with the full cause chain (see
+[Logging](#logging)), so the details stay in the server log.
 
 The top-level `errors[]` of every query, and of every mutation whose client
 does not select the typed `error` field, follows the same rule. The starter
 registers `ConcealingDataFetcherExceptionHandler` as the
 `DataFetcherExceptionHandler` bean in place of DGS's default. It delegates
 to DGS's `DefaultDataFetcherExceptionHandler`, which still picks the
-`ErrorType` and logs the exception at `ERROR`, then replaces the message of
-each `INTERNAL` error with `Internal server error`. A `DgsException`
-(including every built-in exception above) and Spring Security's
-`AccessDeniedException` keep their message; everything else stays
-`INTERNAL` with the generic message. Declare your own
+`ErrorType` and logs the exception (see [Logging](#logging)), then
+replaces the message of each `INTERNAL` error with `Internal server error`.
+A `DgsException` (including every built-in exception above) and Spring
+Security's `AccessDeniedException` keep their message; everything else
+stays `INTERNAL` with the generic message. Declare your own
 `DataFetcherExceptionHandler` bean to replace this behavior.
 
 > **Behavior change.** Earlier versions copied the exception message (or its
@@ -242,6 +242,25 @@ spring:
 or append `?logServerErrorDetail=false` to the JDBC URL. The driver then
 reports only the error line, e.g. the violated constraint, without the
 `Detail:` values.
+
+### Logging
+
+Each failure is logged once. On the typed path `DefaultMutationResolver`
+logs `Mutation failed: <field>`; on the rethrow path, and for every query,
+DGS's handler logs `Exception while executing data fetcher for <path>`.
+Both pick the level the same way: a `DgsException` at its `logLevel`,
+anything else at `ERROR`. The built-in exceptions log at `WARN`; a
+`DgsException` of your own picks its level through the `logLevel`
+constructor argument.
+
+An exception resolved by a `DataFetcherExceptionResolver` bean, which
+spring-graphql consults before DGS's handler, is not logged on the rethrow
+path, just as for a query. A consumer that declares its own
+`DataFetcherExceptionHandler` bean takes over this logging.
+
+> **Behavior change.** The built-in exceptions used to log at `ERROR` in
+> DGS's handler, and a failed mutation whose client did not select the
+> typed `error` field was logged twice: at `WARN`, then at `ERROR`.
 
 ### Setup
 

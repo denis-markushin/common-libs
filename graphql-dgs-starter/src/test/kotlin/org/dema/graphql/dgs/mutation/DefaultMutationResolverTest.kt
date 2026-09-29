@@ -17,8 +17,16 @@ import graphql.schema.DataFetchingFieldSelectionSet
 import io.mockk.every
 import io.mockk.mockk
 import org.dema.graphql.dgs.error.RuntimeError
+import org.dema.graphql.dgs.error.exception.ConflictException
+import org.dema.graphql.dgs.error.exception.DomainValidationException
+import org.dema.graphql.dgs.error.exception.EntityNotFoundException
+import org.dema.graphql.dgs.error.exception.ForbiddenException
+import org.dema.graphql.dgs.error.exception.ServiceUnavailableException
+import org.dema.graphql.dgs.error.exception.UnauthorizedException
 import org.dema.graphql.dgs.error.mapper.CompositeGraphQLErrorMapper
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.MethodSource
 import org.slf4j.LoggerFactory
 import java.util.UUID
 import org.slf4j.event.Level as EventLevel
@@ -118,6 +126,29 @@ class DefaultMutationResolverTest {
         val events = captured()
         with(resolver) { dfe.resolveMutation<Int> { throw IllegalStateException(message) } }
         assertThat(events.list.single().throwableProxy.message).isEqualTo(message)
+    }
+
+    @ParameterizedTest
+    @MethodSource("starterExceptions")
+    fun `failure with error selected logs starter exception at WARN`(boom: Exception) {
+        val dfe = dfeWithErrorSelected(errorSelected = true)
+        every { errorMapper.toGraphQLError(any()) } returns RuntimeError(message = "Internal server error")
+        val events = captured()
+        with(resolver) { dfe.resolveMutation<Int> { throw boom } }
+        assertThat(events.list.single().level).isEqualTo(Level.WARN)
+    }
+
+    companion object {
+        @JvmStatic
+        fun starterExceptions(): List<Exception> =
+            listOf(
+                ConflictException(message = "Seat ${UUID.randomUUID()} taken", reason = "SEAT_TAKEN"),
+                DomainValidationException(message = "IBAN ${UUID.randomUUID()} malformed", path = "iban"),
+                EntityNotFoundException(entityType = "Invoice", entityId = UUID.randomUUID()),
+                ForbiddenException(message = "Payroll ${UUID.randomUUID()} locked"),
+                ServiceUnavailableException(message = "Ledger ${UUID.randomUUID()} offline", retryAfterSeconds = 17),
+                UnauthorizedException(message = "Token ${UUID.randomUUID()} expired"),
+            )
     }
 }
 
