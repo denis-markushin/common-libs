@@ -171,8 +171,9 @@ exception is reported via the top-level `errors[]` array. This starter
 automates the branch via `dfe.resolveMutation { ... }` and provides a
 pluggable chain of mappers that turn exceptions into typed errors. When
 the client does NOT select the typed `error` field, the exception is
-rethrown and DGS's default error handling emits the matching `ErrorType`
-(e.g. `NOT_FOUND`, `PERMISSION_DENIED`) into the top-level `errors[]`.
+rethrown and reaches the top-level `errors[]` with the matching `ErrorType`
+(e.g. `NOT_FOUND`, `PERMISSION_DENIED`); see
+[Unclassified exceptions](#unclassified-exceptions) for its message.
 
 ### Built-in error types
 
@@ -210,13 +211,26 @@ client, since a database driver message such as PostgreSQL's
 carries row values. `DefaultMutationResolver` logs every failure at `WARN`
 with the full cause chain, so the details stay in the server log.
 
-> **Behavior change.** Earlier versions copied the exception message (or its
-> class name) into `RuntimeError.message`. A client that parsed it must switch
-> to a typed error: subclass a built-in exception or register a mapper.
+The top-level `errors[]` of every query, and of every mutation whose client
+does not select the typed `error` field, follows the same rule. The starter
+registers `ConcealingDataFetcherExceptionHandler` as the
+`DataFetcherExceptionHandler` bean in place of DGS's default. It delegates
+to DGS's `DefaultDataFetcherExceptionHandler`, which still picks the
+`ErrorType` and logs the exception at `ERROR`, then replaces the message of
+each `INTERNAL` error with `Internal server error`. A `DgsException`
+(including every built-in exception above) and Spring Security's
+`AccessDeniedException` keep their message; everything else stays
+`INTERNAL` with the generic message. Declare your own
+`DataFetcherExceptionHandler` bean to replace this behavior.
 
-The server log still receives those row values, as do DGS's top-level
-`errors[]` when the client does not select the typed `error` field. Strip
-them at the source by turning off the PostgreSQL driver's
+> **Behavior change.** Earlier versions copied the exception message (or its
+> class name) into `RuntimeError.message`, and DGS put
+> `<exception class>: <message>` into the top-level `errors[]`. A client that
+> parsed either must switch to a typed error: subclass a built-in exception
+> or register a mapper.
+
+The server log still receives those row values. Strip them at the source by
+turning off the PostgreSQL driver's
 `logServerErrorDetail` (default `true`):
 ```yaml
 spring:
