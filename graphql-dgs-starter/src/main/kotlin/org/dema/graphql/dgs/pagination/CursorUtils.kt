@@ -29,6 +29,11 @@ object CursorUtils {
     }
 
     /**
+     * Converts this decoded cursor value into [type], the Java type of its order-by field.
+     */
+    fun String.into(type: Class<*>): Any = objectMapper.convertValue(this, type)
+
+    /**
      * Encodes this array of values into a Base64 string representation.
      */
     fun Array<out Any?>.encodeToBase64(): String = objectMapper.writeValueAsString(this).encodeToBase64()

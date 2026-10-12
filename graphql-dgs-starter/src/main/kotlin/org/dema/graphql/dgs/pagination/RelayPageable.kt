@@ -1,6 +1,7 @@
 package org.dema.graphql.dgs.pagination
 
 import org.dema.graphql.dgs.utils.CursorUtils.decode
+import org.dema.graphql.dgs.utils.CursorUtils.into
 import org.dema.graphql.dgs.utils.OrderByClausesMapping
 import org.jooq.SortField
 
@@ -23,13 +24,13 @@ class RelayPageable(
     /** Order-by clauses associated with [sortingKey]. */
     val orderByClauses: Array<out SortField<*>> = OrderByClausesMapping.getFields(sortingKey)
 
-    /** Values decoded from [after] used for seek pagination. */
-    val seekValues: Array<String> =
+    /** Values decoded from [after] into the Java types of [orderByClauses] used for seek pagination. */
+    val seekValues: Array<out Any> =
         after?.decode()?.also { values ->
             check(values.size == orderByClauses.size) {
                 "Cursor size: [${values.size}] does not match orderBy fields size: [${orderByClauses.size}]"
             }
-        } ?: emptyArray()
+        }?.mapIndexed { index, value -> value.into(orderByClauses[index].`$field`().type) }?.toTypedArray() ?: emptyArray()
 
     override fun toString(): String = "RelayPageable(" +
         "first=$first, " +
