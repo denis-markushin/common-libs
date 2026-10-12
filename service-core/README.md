@@ -1,7 +1,8 @@
 # Service core
 
 Spring Boot defaults shared across services: Jetty, validation, Jackson
-Kotlin, SpringDoc, Actuator, and HTTP exchange logging with Logbook.
+Kotlin, SpringDoc, Actuator, HTTP exchange logging with Logbook, and a UTC
+JVM default time zone.
 
 ## HTTP exchange logging
 
@@ -81,3 +82,17 @@ An endpoint exposed this way still requires authentication under
 `security-starter`; add it to `dema.security.permit-all` to make it public.
 `heapdump` also has default access `none` in Spring Boot 4, so it needs
 `management.endpoint.heapdump.access` as well.
+
+## Time zone
+
+The JVM default time zone is set to UTC when the application starts, on
+`ApplicationStartingEvent`, before the environment, logging or any bean is
+set up. This covers `main`, `bootRun`, containers and `@SpringBootTest`.
+
+Columns are `timestamptz` and code works with `LocalDateTime` through jOOQ
+converters; both the converters and the pgjdbc session time zone follow the
+JVM default, so any other zone silently shifts stored times. There is no
+property to turn this off.
+
+> **Behavior change.** Earlier versions left the JVM default untouched. A
+> service that set `TimeZone.setDefault` itself can drop that call.
