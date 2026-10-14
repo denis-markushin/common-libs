@@ -46,15 +46,19 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.kafka.KafkaContainer
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.net.ServerSocket
+import java.sql.Connection
+import java.sql.SQLException
 import java.sql.Timestamp
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.TestTimeSource
 import kotlin.time.TimeSource
+import org.apache.kafka.common.KafkaException as ClientKafkaException
 import org.apache.kafka.common.errors.TimeoutException as KafkaTimeoutException
 
 @Testcontainers
@@ -169,6 +173,26 @@ class OutboxPublisherIntegrationTest {
         assertThat(attempts(id), "rolling deploy during an outage counted against a healthy event").isEqualTo(0)
     }
 
+    @Test
+    fun `producer interrupted while blocked records no error`() {
+        val id = UUID.randomUUID()
+        store.insert(id, "Shift", UUID.randomUUID(), "Opened", """{"till":17}""")
+        every { kafka.send(any(), any(), any()) } answers { throw InterruptException(InterruptedException()) }
+        publisher.publish()
+        Thread.interrupted()
+        assertThat(failure(id), "shutdown reported as a failure of a healthy event").isNull()
+    }
+
+    @Test
+    fun `events sent before a failure stay published`() {
+        val head = UUID.randomUUID()
+        store.insert(head, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":8}""")
+        store.insert(UUID.randomUUID(), "Order", UUID.randomUUID(), "OrderClosed", """{"seat":-8,"bad":true}""")
+        refuse("bad")
+        publisher.publish()
+        assertThat(publication(head), "failure rolled back an event the broker already took").isNotNull()
+    }
+
     @ParameterizedTest
     @ValueSource(
         classes = [
@@ -182,7 +206,7 @@ class OutboxPublisherIntegrationTest {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"guests":${Random.nextInt(1, 40)}}""")
         val cause = fault.getConstructor(String::class.java).newInstance("kafka-${Random.nextInt()} refused")
-        every { kafka.send(any(), any(), any()) } throws KafkaException("Failed to construct kafka producer", cause)
+        every { kafka.send(any(), any(), any()) } throws ClientKafkaException("Failed to construct kafka producer", cause)
         publisher.publish()
         assertThat(attempts(id), "${fault.simpleName} counted against a healthy event").isEqualTo(0)
     }
@@ -274,6 +298,53 @@ class OutboxPublisherIntegrationTest {
         time += 4_100.milliseconds
         relay.tick()
         assertThat(attempts(id), "relay never resumed after its pause").isEqualTo(2)
+    }
+
+    @Test
+    fun `poll that published before a failure lifts the pause`() {
+        val tail = UUID.randomUUID()
+        store.insert(UUID.randomUUID(), "Order", UUID.randomUUID(), "OrderClosed", """{"seat":3}""")
+        store.insert(tail, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":-3,"bad":true}""")
+        refuse("bad")
+        val props = OutboxProperties(
+            topic = "orders.v1",
+            pollIntervalMs = 5_300,
+            batchSize = 21,
+            maxAttempts = 9,
+            sendTimeoutMs = 2_300,
+            maxBackoffMs = 80_000,
+        )
+        val relay = OutboxPublisher(store, kafka, props, tx, TestTimeSource())
+        repeat(2) { relay.tick() }
+        assertThat(attempts(tail), "relay paused although its poll delivered events").isEqualTo(2)
+    }
+
+    @Test
+    fun `failed database poll pauses the relay`() {
+        val calls = AtomicInteger()
+        val database = object : DriverManagerDataSource() {
+            override fun getConnection(): Connection {
+                calls.incrementAndGet()
+                throw SQLException("Connection to db-${Random.nextInt(1, 99)}:5432 refused")
+            }
+        }
+        val props = OutboxProperties(
+            topic = "orders.v1",
+            pollIntervalMs = 3_900,
+            batchSize = 11,
+            maxAttempts = 4,
+            sendTimeoutMs = 1_400,
+            maxBackoffMs = 40_000,
+        )
+        val relay = OutboxPublisher(
+            OutboxStore(JdbcTemplate(database)),
+            kafka,
+            props,
+            TransactionTemplate(DataSourceTransactionManager(database)),
+            TestTimeSource(),
+        )
+        repeat(3) { relay.tick() }
+        assertThat(calls.get(), "relay hammered a database that is down").isEqualTo(1)
     }
 
     @Test
@@ -465,6 +536,13 @@ class OutboxPublisherIntegrationTest {
 
     private fun rejection(): KafkaException =
         KafkaException("Send failed", RecordTooLargeException("The message is ${Random.nextInt(1_100_000, 9_000_000)} bytes"))
+
+    private fun refuse(marker: String) {
+        every { kafka.send(any(), any(), any()) } answers {
+            if (thirdArg<String>().contains(marker)) throw rejection()
+            CompletableFuture.completedFuture(mockk(relaxed = true))
+        }
+    }
 
     private fun <T> producer(
         bootstrap: String,

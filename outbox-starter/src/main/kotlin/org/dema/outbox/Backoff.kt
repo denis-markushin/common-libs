@@ -5,9 +5,10 @@ import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 /**
- * Pause the relay keeps after failed polls. The first failure waits [base],
- * each consecutive one doubles the pause up to [cap], and a clean poll lifts it,
- * so a broker outage costs one blocked send per pause instead of one per poll.
+ * Pause the relay keeps after polls that delivered nothing. The first such poll
+ * waits [base], no longer than the regular poll interval; each consecutive one
+ * doubles the wait up to [cap], and a poll that delivers anything lifts it, so a
+ * broker outage costs one blocked send per pause instead of one per poll.
  * Measured on a monotonic [TimeSource], so a wall-clock step cannot stretch it.
  */
 internal class Backoff(
