@@ -25,6 +25,29 @@ internal class OutboxStore(
         )
     }
 
+    /**
+     * MUST run inside a transaction — takes the relay lock until the transaction ends;
+     * false while another relay holds it. The two-key form keyed by the outbox_events
+     * table never meets the single-key locks applications take on their own ids, and
+     * services sharing a database with their own tables do not wait for each other.
+     * Shortens TCP keepalive of the session first, so the server drops the lock of a
+     * host that vanished mid-batch within about 30 s instead of hours.
+     */
+    fun lock(): Boolean {
+        jdbc.execute(
+            """
+            set local tcp_keepalives_idle = 10;
+            set local tcp_keepalives_interval = 5;
+            set local tcp_keepalives_count = 3;
+            set local tcp_user_timeout = 30000
+            """.trimIndent(),
+        )
+        return jdbc.queryForObject(
+            "select pg_try_advisory_xact_lock('outbox_events'::regclass::oid::int, 0)",
+            Boolean::class.java,
+        ) == true
+    }
+
     /** MUST run inside a transaction — locks rows with FOR UPDATE SKIP LOCKED. */
     fun fetchUnpublished(limit: Int, maxAttempts: Int): List<OutboxRow> =
         jdbc.query(

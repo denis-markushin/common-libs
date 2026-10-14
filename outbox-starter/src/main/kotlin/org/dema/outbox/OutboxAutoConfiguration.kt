@@ -9,8 +9,8 @@ import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
 import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.kafka.core.KafkaTemplate
-import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.ObjectMapper
 import javax.sql.DataSource
@@ -36,10 +36,11 @@ class OutboxAutoConfiguration {
     internal fun outboxPublisher(
         store: OutboxStore,
         kafka: KafkaTemplate<String, String>,
-        txManager: PlatformTransactionManager,
+        dataSource: DataSource,
         props: OutboxProperties,
     ): OutboxPublisher {
         require(props.topic.isNotBlank()) { "dema.outbox.topic must be configured" }
-        return OutboxPublisher(store, kafka, props, TransactionTemplate(txManager), TimeSource.Monotonic)
+        val tx = TransactionTemplate(DataSourceTransactionManager(dataSource))
+        return OutboxPublisher(store, kafka, props, tx, TimeSource.Monotonic)
     }
 }

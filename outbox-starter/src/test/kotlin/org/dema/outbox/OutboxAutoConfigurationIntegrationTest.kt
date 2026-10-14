@@ -4,6 +4,7 @@ import assertk.assertThat
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
+import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.getBean
@@ -12,15 +13,23 @@ import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.TransactionDefinition
+import org.springframework.transaction.support.AbstractPlatformTransactionManager
+import org.springframework.transaction.support.DefaultTransactionStatus
+import org.springframework.transaction.support.TransactionTemplate
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import tools.jackson.databind.ObjectMapper
+import java.util.UUID
+import java.util.concurrent.CompletableFuture
 import javax.sql.DataSource
+import kotlin.random.Random
 
 /**
  * Boots the outbox autoconfiguration in a real Spring context. Verifies that
@@ -43,6 +52,33 @@ class OutboxAutoConfigurationIntegrationTest {
 
         @Bean
         fun txManager(ds: DataSource): PlatformTransactionManager = DataSourceTransactionManager(ds)
+
+        @Bean
+        fun objectMapper(): ObjectMapper = ObjectMapper()
+
+        @Bean
+        fun kafkaTemplate(): KafkaTemplate<String, String> = mockk(relaxed = true)
+    }
+
+    /**
+     * Application whose only transaction manager leaves the outbox DataSource alone,
+     * the way a KafkaTransactionManager does.
+     */
+    @Configuration
+    class ForeignTransactions {
+        @Bean
+        fun dataSource(): DataSource = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
+
+        @Bean
+        fun txManager(): PlatformTransactionManager = object : AbstractPlatformTransactionManager() {
+            override fun doGetTransaction(): Any = Any()
+
+            override fun doBegin(transaction: Any, definition: TransactionDefinition) = Unit
+
+            override fun doCommit(status: DefaultTransactionStatus) = Unit
+
+            override fun doRollback(status: DefaultTransactionStatus) = Unit
+        }
 
         @Bean
         fun objectMapper(): ObjectMapper = ObjectMapper()
@@ -101,5 +137,35 @@ class OutboxAutoConfigurationIntegrationTest {
         runner.run { context ->
             assertThat(context.getBeansOfType<OutboxStore>().size).isEqualTo(1)
         }
+    }
+
+    @Test
+    fun `relay keeps its lock for the whole batch whatever transaction manager the application has`() {
+        var free: Boolean? = null
+        ApplicationContextRunner()
+            .withUserConfiguration(ForeignTransactions::class.java)
+            .withConfiguration(
+                AutoConfigurations.of(
+                    OutboxAutoConfiguration::class.java,
+                    OutboxLiquibaseAutoConfiguration::class.java,
+                ),
+            )
+            .withPropertyValues("dema.outbox.topic=orders.${UUID.randomUUID()}", "dema.outbox.poll-interval-ms=3600000")
+            .run { context ->
+                val store = context.getBean<OutboxStore>()
+                val kafka = context.getBean<KafkaTemplate<String, String>>()
+                store.insert(UUID.randomUUID(), "Order", UUID.randomUUID(), "OrderClosed", """{"seat":${Random.nextInt()}}""")
+                every { kafka.send(any(), any(), any()) } answers {
+                    free = lock()
+                    CompletableFuture.completedFuture(mockk(relaxed = true))
+                }
+                context.getBean<OutboxPublisher>().publish()
+            }
+        assertThat(free, "relay let go of its lock in the middle of a batch").isEqualTo(false)
+    }
+
+    private fun lock(): Boolean {
+        val source = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
+        return TransactionTemplate(DataSourceTransactionManager(source)).execute { OutboxStore(JdbcTemplate(source)).lock() } == true
     }
 }
