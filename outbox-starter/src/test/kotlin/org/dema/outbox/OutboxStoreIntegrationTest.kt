@@ -6,6 +6,7 @@ import assertk.assertions.containsExactly
 import assertk.assertions.hasSize
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNull
+import assertk.assertions.isTrue
 import liquibase.Contexts
 import liquibase.Liquibase
 import liquibase.database.DatabaseFactory
@@ -21,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
+import java.sql.DriverManager
 import java.util.UUID
 
 @Testcontainers
@@ -179,8 +181,69 @@ class OutboxStoreIntegrationTest {
         assertThat(store.fetchUnpublished(10, 5).map { it.id }).containsExactly(first, second)
     }
 
+    @Test
+    fun `application lock on an id equal to the table oid leaves the relay lock free`() {
+        var free: Boolean? = null
+        TransactionTemplate(DataSourceTransactionManager(ds)).executeWithoutResult {
+            jdbc.execute("select pg_advisory_xact_lock('outbox_events'::regclass::oid::bigint)")
+            free = lock()
+        }
+        assertThat(free, "application lock on an entity id stalled the relay").isEqualTo(true)
+    }
+
+    @Test
+    fun `lock bounds how long a vanished holder keeps it`() {
+        var keepalive: String? = null
+        lock {
+            keepalive = it.queryForObject(
+                """
+                select concat_ws(',', current_setting('tcp_keepalives_idle'), current_setting('tcp_keepalives_interval'),
+                    current_setting('tcp_keepalives_count'), current_setting('tcp_user_timeout'))
+                """.trimIndent(),
+                String::class.java,
+            )
+        }
+        assertThat(keepalive, "vanished holder would keep the relay lock for hours").isEqualTo("10,5,3,30000")
+    }
+
+    @Test
+    fun `lock is refused while another transaction holds it`() {
+        var rival: Boolean? = null
+        lock { rival = lock() }
+        assertThat(rival, "two transactions held the relay lock at once").isEqualTo(false)
+    }
+
+    @Test
+    fun `lock is free again once its transaction ends`() {
+        val free = DriverManager.getConnection(pg.jdbcUrl, pg.username, pg.password).use { connection ->
+            val source = SingleConnectionDataSource(connection, true)
+            TransactionTemplate(DataSourceTransactionManager(source)).execute { OutboxStore(JdbcTemplate(source)).lock() }
+            lock()
+        }
+        assertThat(free, "relay lock outlived the transaction that took it").isTrue()
+    }
+
+    @Test
+    fun `lock of one outbox table leaves the table of another schema free`() {
+        val schema = "outbox_${UUID.randomUUID().toString().replace("-", "")}"
+        jdbc.execute("create schema $schema")
+        jdbc.execute("create table $schema.outbox_events (like public.outbox_events)")
+        var other: Boolean? = null
+        lock { other = lock(schema) }
+        assertThat(other, "relay lock of one outbox table blocked another").isEqualTo(true)
+    }
+
     private fun singleConnectionDataSource(): SingleConnectionDataSource =
         SingleConnectionDataSource(pg.jdbcUrl, pg.username, pg.password, true).apply {
             setAutoCommit(false)
         }
+
+    private fun lock(schema: String = "public", during: (JdbcTemplate) -> Unit = {}): Boolean {
+        val source = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
+        val session = JdbcTemplate(source)
+        return TransactionTemplate(DataSourceTransactionManager(source)).execute {
+            session.execute("set local search_path = $schema")
+            OutboxStore(session).lock().also { if (it) during(session) }
+        } == true
+    }
 }

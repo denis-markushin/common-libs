@@ -28,6 +28,9 @@ private val log = KotlinLogging.logger {}
  * `max-attempts`; broker, network, authentication and ACL failures never kill events.
  * The pause belongs to the relay thread alone: a [publish] from another thread
  * neither waits for it nor lifts it, so no state is shared between threads.
+ * Each poll first takes a database lock held until its batch commits, so only
+ * one relay publishes at a time across replicas and no batch overtakes
+ * another; a relay that finds the lock taken skips the poll unpaused.
  */
 class OutboxPublisher internal constructor(
     private val store: OutboxStore,
@@ -64,18 +67,22 @@ class OutboxPublisher internal constructor(
     internal fun tick() {
         if (!backoff.ready()) return
         try {
-            if (poll()) backoff.clear() else backoff.fail()
+            when (poll()) {
+                true -> backoff.clear()
+                false -> backoff.fail()
+                null -> log.debug { "Outbox relay skipped a poll of ${props.topic} while another relay holds the lock" }
+            }
         } catch (e: Throwable) {
             log.error(e) { "Outbox relay poll failed" }
             backoff.fail()
         }
     }
 
-    fun publish() {
+    internal fun publish() {
         poll()
     }
 
-    private fun poll(): Boolean = tx.execute { drain() } == true
+    private fun poll(): Boolean? = tx.execute { if (store.lock()) drain() else null }
 
     private fun drain(): Boolean {
         val batch = store.fetchUnpublished(props.batchSize, props.maxAttempts)

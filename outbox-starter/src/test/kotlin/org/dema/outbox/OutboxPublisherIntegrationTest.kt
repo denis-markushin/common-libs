@@ -299,6 +299,52 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
+    fun `second relay does not publish while the first holds its batch`() {
+        val tail = UUID.randomUUID()
+        val aggregate = UUID.randomUUID()
+        store.insert(UUID.randomUUID(), "Order", aggregate, "OrderClosed", """{"seat":${Random.nextInt()}}""")
+        store.insert(tail, "Order", aggregate, "OrderReopened", """{"seat":${Random.nextInt()}}""")
+        val props = OutboxProperties(
+            topic = "orders.${UUID.randomUUID()}",
+            pollIntervalMs = 3_900,
+            batchSize = 1,
+            maxAttempts = 6,
+            sendTimeoutMs = 10_000,
+            maxBackoffMs = 41_000,
+        )
+        var second: Result<Unit>? = null
+        producer(broker.bootstrapServers, ProducerConfig.MAX_BLOCK_MS_CONFIG to 10_000) { template ->
+            every { kafka.send(any(), any(), any()) } answers {
+                second = runCatching { peer(template, props).publish() }
+                CompletableFuture.completedFuture(mockk(relaxed = true))
+            }
+            relay(kafka, props).publish()
+        }
+        checkNotNull(second) { "Second relay never polled while the first held its batch" }.getOrThrow()
+        assertThat(publication(tail), "second relay overtook the batch the first one holds").isNull()
+    }
+
+    @Test
+    fun `relay skipped by a busy peer polls again on the next tick`() {
+        val id = UUID.randomUUID()
+        store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":${Random.nextInt()}}""")
+        val props = OutboxProperties(
+            topic = "orders.v1",
+            pollIntervalMs = 5_300,
+            batchSize = 23,
+            maxAttempts = 7,
+            sendTimeoutMs = 2_300,
+            maxBackoffMs = 64_000,
+        )
+        val relay = OutboxPublisher(store, kafka, props, tx, TestTimeSource())
+        every { kafka.send(any(), any(), any()) } throws rejection()
+        hold { relay.tick() }
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        relay.tick()
+        assertThat(publication(id), "relay paused after a peer merely held the lock").isNotNull()
+    }
+
+    @Test
     fun `unreachable broker does not count an attempt`() {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"total":731}""")
@@ -382,6 +428,25 @@ class OutboxPublisherIntegrationTest {
 
     private fun relay(template: KafkaTemplate<String, String>, props: OutboxProperties): OutboxPublisher =
         OutboxPublisher(store, template, props, tx, TimeSource.Monotonic)
+
+    private fun peer(template: KafkaTemplate<String, String>, props: OutboxProperties): OutboxPublisher {
+        val source = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
+        return OutboxPublisher(
+            OutboxStore(JdbcTemplate(source)),
+            template,
+            props,
+            TransactionTemplate(DataSourceTransactionManager(source)),
+            TimeSource.Monotonic,
+        )
+    }
+
+    private fun hold(block: () -> Unit) {
+        val source = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
+        TransactionTemplate(DataSourceTransactionManager(source)).executeWithoutResult {
+            check(OutboxStore(JdbcTemplate(source)).lock()) { "Relay lock is already held by another session" }
+            block()
+        }
+    }
 
     private fun attempts(id: UUID): Int? =
         jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)

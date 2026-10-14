@@ -75,20 +75,39 @@ published_at (timestamptz), seq (bigint identity)`.
 
 - **Relay thread:** the starter runs its own `outbox-relay` daemon thread
   (`SmartLifecycle`). It does not enable `@EnableScheduling` for your
-  application and needs no scheduling setup on the consumer side.
+  application and needs no scheduling setup on the consumer side. The relay
+  runs its own JDBC transactions on the outbox `DataSource`, whatever
+  transaction manager your application uses.
 - **Ordering:** rows are published in `seq` (insertion) order and keyed by
   `aggregate_id`, so per-aggregate order is preserved within a partition. A
   failed send ends the poll and the next poll starts from that row, so later
-  events never overtake it. Exceptions: a dead row is skipped, and concurrent
-  relays drain separate batches, so events of one aggregate split across them
-  can interleave. Relays run concurrently with several replicas, or when your
-  code calls `OutboxPublisher.publish()` while the relay thread polls.
+  events never overtake it, and only one relay publishes at a time (see
+  Multi-replica). `seq` is taken at insert, not at commit: of two transactions
+  writing events of one aggregate at once, the one that commits first is
+  published first, even with the higher `seq`. Serialize writes per aggregate
+  to keep its order, e.g. update or `select ... for update` the aggregate row
+  in the same transaction. Exception: a dead row is skipped.
 - **Delivery is at-least-once:** a crash between a successful send and the
   transaction commit re-sends the batch on the next poll, and so does a send
   that timed out on our side but still reached the broker. Consumers must
   deduplicate, e.g. by `eventId` from the envelope.
-- **Multi-replica safe:** the relay fetches with `FOR UPDATE SKIP LOCKED`, so
-  multiple instances never publish the same row concurrently.
+- **Multi-replica:** every poll first takes a transaction-scoped advisory lock
+  keyed by the `outbox_events` table and holds it until the batch commits. It
+  uses the two-key form of `pg_try_advisory_xact_lock`, so it never meets the
+  single-key locks applications take on their own ids. A relay that finds the
+  lock taken skips that poll without pausing and tries again on the next one.
+  Extra replicas add failover, not throughput. `FOR UPDATE SKIP LOCKED` still
+  keeps two relays from sending the same row, including replicas on an older
+  starter version during a rolling upgrade; order across replicas holds once
+  all of them run this version. The lock ends with the transaction, so it
+  works behind transaction-mode PgBouncer.
+- **Vanished replica:** a host that disappears mid-batch (node crash, network
+  partition) leaves its session open on the server, and the lock with it. The
+  relay shortens TCP keepalive of its session for each poll, so the server
+  drops that session within about 30 s (needs PostgreSQL 12+). Behind
+  PgBouncer the server only sees the bouncer: set its `tcp_keepidle`,
+  `tcp_keepintvl` and `tcp_keepcnt`, or an `idle_transaction_timeout` above
+  `max.block.ms` plus `send-timeout-ms`.
 - **Kafka outage:** the first failed send ends the poll and pauses the relay
   for `poll-interval-ms`; every consecutive failed poll doubles the pause up to
   `max-backoff-ms`, and the first clean poll lifts it. Any failure outside the
@@ -96,8 +115,7 @@ published_at (timestamptz), seq (bigint identity)`.
   timeout, `send-timeout-ms` expiring, authentication, ACL) records
   `last_error` but never counts toward `max-attempts`, so a broker outage of
   any length leaves events alive. A send interrupted by shutdown counts
-  nothing either. The pause holds only for the relay thread: a
-  `publish()` call from your code runs at once and leaves the pause as it is.
+  nothing either.
 - **Producer timeouts:** `KafkaTemplate.send` blocks for up to the producer's
   `max.block.ms` (60 s by default) while metadata is missing, and the relay
   holds one database connection meanwhile. Keep `max.block.ms` at or below
