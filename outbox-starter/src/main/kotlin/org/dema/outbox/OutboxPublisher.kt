@@ -3,6 +3,7 @@ package org.dema.outbox
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.apache.kafka.common.InvalidRecordException
 import org.apache.kafka.common.errors.ApiException
+import org.apache.kafka.common.errors.InterruptException
 import org.apache.kafka.common.errors.RecordBatchTooLargeException
 import org.apache.kafka.common.errors.RecordTooLargeException
 import org.apache.kafka.common.errors.SerializationException
@@ -23,7 +24,8 @@ private val log = KotlinLogging.logger {}
  * Owns its scheduling (no global @EnableScheduling) and its transactions
  * (programmatic [TransactionTemplate], no proxy magic).
  * A failed send ends the poll, so later events neither overtake it nor queue up
- * behind a dead broker, and pauses the relay with a growing [Backoff]. Only a
+ * behind a dead broker; a poll that delivered nothing pauses the relay with a
+ * growing [Backoff], one that delivered anything lifts the pause. Only a
  * failure of the event itself (too large, unserializable) counts toward
  * `max-attempts`; broker, network, authentication and ACL failures never kill events.
  * The pause belongs to the relay thread alone: a [publish] from another thread
@@ -82,7 +84,7 @@ class OutboxPublisher internal constructor(
         if (batch.isEmpty()) return true
         val count = batch.takeWhile(::send).size
         log.debug { "Published $count/${batch.size} outbox event(s) to ${props.topic}" }
-        return count == batch.size
+        return count > 0
     }
 
     private fun send(row: OutboxRow): Boolean =
@@ -92,6 +94,9 @@ class OutboxPublisher internal constructor(
             store.markPublished(row.id)
             true
         } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            false
+        } catch (e: InterruptException) {
             Thread.currentThread().interrupt()
             false
         } catch (e: TimeoutException) {
