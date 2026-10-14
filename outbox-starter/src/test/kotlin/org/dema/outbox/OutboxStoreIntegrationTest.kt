@@ -5,6 +5,7 @@ import assertk.assertThat
 import assertk.assertions.containsExactly
 import assertk.assertions.hasSize
 import assertk.assertions.isEqualTo
+import assertk.assertions.isNull
 import liquibase.Contexts
 import liquibase.Liquibase
 import liquibase.database.DatabaseFactory
@@ -94,6 +95,34 @@ class OutboxStoreIntegrationTest {
         store.markFailed(id, "late failure after successful send")
         val attempts = jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)
         assertThat(attempts).isEqualTo(0)
+    }
+
+    @Test
+    fun `markDeferred does not count an attempt`() {
+        val id = UUID.randomUUID()
+        store.insert(id, "Kx", UUID.randomUUID(), "Deferred", """{"q":3}""")
+        repeat(4) { store.markDeferred(id, "Topic kx.v1 not present in metadata after 517 ms.") }
+        val attempts = jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)
+        assertThat(attempts, "deferred send counted toward the dead limit").isEqualTo(0)
+    }
+
+    @Test
+    fun `markDeferred records the last error`() {
+        val id = UUID.randomUUID()
+        store.insert(id, "Kx", UUID.randomUUID(), "Deferred", """{"q":-8}""")
+        store.markDeferred(id, "Disconnected from node 3")
+        val error = jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
+        assertThat(error, "deferred send left no trace of why the row is stuck").isEqualTo("Disconnected from node 3")
+    }
+
+    @Test
+    fun `markDeferred on published row keeps the error empty`() {
+        val id = UUID.randomUUID()
+        store.insert(id, "Kx", UUID.randomUUID(), "Deferred", """{"q":0.5}""")
+        store.markPublished(id)
+        store.markDeferred(id, "late timeout after a successful send")
+        val error = jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
+        assertThat(error, "published row reported as stuck").isNull()
     }
 
     @Test

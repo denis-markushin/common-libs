@@ -12,10 +12,15 @@ data class OutboxProperties(
     var pollIntervalMs: Long = 1000,
     /** Rows fetched per poll. */
     var batchSize: Int = 100,
-    /** Event becomes dead (excluded from fetch) after this many failed sends. */
+    /**
+     * Event becomes dead (excluded from fetch) after this many failures of the event itself
+     * (record too large, unserializable); broker, network, authentication and ACL failures never count.
+     */
     var maxAttempts: Int = 5,
     /** Max time to wait for a single Kafka send acknowledgement (ms). */
     var sendTimeoutMs: Long = 10000,
+    /** Cap of the relay pause after failed polls (ms); the pause doubles from [pollIntervalMs] up to it. */
+    var maxBackoffMs: Long = 60000,
     /** Bundled changelog that provisions the outbox_events table. */
     var liquibase: Liquibase = Liquibase(),
 ) {

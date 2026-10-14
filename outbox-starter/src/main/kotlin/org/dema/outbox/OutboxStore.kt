@@ -54,6 +54,13 @@ internal class OutboxStore(
         )
     }
 
+    fun markDeferred(id: UUID, error: String) {
+        jdbc.update(
+            "update outbox_events set last_error = ? where id = ? and published_at is null",
+            error, id,
+        )
+    }
+
     private companion object {
         val ROW_MAPPER = RowMapper { rs, _ ->
             OutboxRow(

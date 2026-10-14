@@ -14,6 +14,7 @@ import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.ObjectMapper
 import javax.sql.DataSource
+import kotlin.time.TimeSource
 
 @AutoConfiguration(after = [DataSourceAutoConfiguration::class, KafkaAutoConfiguration::class])
 @ConditionalOnClass(KafkaTemplate::class, DataSource::class)
@@ -39,6 +40,6 @@ class OutboxAutoConfiguration {
         props: OutboxProperties,
     ): OutboxPublisher {
         require(props.topic.isNotBlank()) { "dema.outbox.topic must be configured" }
-        return OutboxPublisher(store, kafka, props, TransactionTemplate(txManager))
+        return OutboxPublisher(store, kafka, props, TransactionTemplate(txManager), TimeSource.Monotonic)
     }
 }

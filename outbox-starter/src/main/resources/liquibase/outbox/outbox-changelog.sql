@@ -30,3 +30,6 @@ alter table outbox_events add column seq bigint generated always as identity;
 drop index idx_outbox_unpublished;
 create index idx_outbox_unpublished on outbox_events (seq) where published_at is null;
 comment on column outbox_events.seq is 'Monotonic insertion sequence; defines relay publish order';
+
+--changeset denis.markushin:outbox-events-attempts-rejections context:outbox
+comment on column outbox_events.attempts is 'Publish failures of the event itself (too large, unserializable); row is dead once attempts >= max-attempts';
