@@ -8,7 +8,7 @@ data class OutboxProperties(
     var enabled: Boolean = true,
     /** Kafka topic events are published to. Required. */
     var topic: String = "",
-    /** Scheduler poll interval (ms); also the wait after a first poll that delivered nothing. */
+    /** Scheduler poll interval (ms); also the wait after a first poll that found events but delivered none. */
     var pollIntervalMs: Long = 1000,
     /** Rows fetched per poll. */
     var batchSize: Int = 100,
@@ -19,7 +19,10 @@ data class OutboxProperties(
     var maxAttempts: Int = 5,
     /** Max time to wait for a single Kafka send acknowledgement (ms). */
     var sendTimeoutMs: Long = 10000,
-    /** Cap of the relay wait after polls that delivered nothing (ms); it doubles from [pollIntervalMs] up to it, 0 turns it off. */
+    /**
+     * Cap of the relay wait after polls that found events but delivered none (ms);
+     * it doubles from [pollIntervalMs] up to it, 0 turns it off.
+     */
     var maxBackoffMs: Long = 60000,
     /** Bundled changelog that provisions the outbox_events table. */
     var liquibase: Liquibase = Liquibase(),

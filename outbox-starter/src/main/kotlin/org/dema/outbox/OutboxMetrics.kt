@@ -19,7 +19,7 @@ private val log = KotlinLogging.logger {}
 /**
  * Gauges operators alert on when the relay stalls: the backlog it still owes
  * Kafka, how long the head of that backlog has waited, the dead events it gave
- * up on and whether a poll that delivered nothing paused it. A scrape never
+ * up on and whether a poll that found events but delivered none paused it. A scrape never
  * waits for the database: it reads the last [Snapshot] and asks the
  * `outbox-metrics` thread, the only writer of snapshots, for a fresh one, so
  * the counts lag one scrape behind the table; binding starts the first sample
@@ -70,7 +70,7 @@ internal class OutboxMetrics(
             .register(registry)
         Gauge
             .builder("outbox.relay.paused", publisher) { if (it.paused) 1.0 else 0.0 }
-            .description("1 from a relay poll that delivered nothing until one that delivers, 0 otherwise")
+            .description("1 from a relay poll that found events but delivered none until one that delivers or finds none, 0 otherwise")
             .strongReference(true)
             .register(registry)
         refresh()

@@ -24,12 +24,13 @@ private val log = KotlinLogging.logger {}
  * Owns its scheduling (no global @EnableScheduling) and its transactions
  * (programmatic [TransactionTemplate], no proxy magic).
  * A failed send ends the poll, so later events neither overtake it nor queue up
- * behind a dead broker; a poll that delivered nothing pauses the relay with a
- * growing [Backoff], one that delivered anything lifts the pause. Only a
+ * behind a dead broker; a poll that found events but delivered none pauses the
+ * relay with a growing [Backoff], one that delivered anything or found nothing
+ * to send lifts the pause. Only a
  * failure of the event itself (too large, unserializable) counts toward
  * `max-attempts`; broker, network, authentication and ACL failures never kill events.
- * The pause belongs to the relay thread alone: a [publish] from another thread
- * neither waits for it nor lifts it, and a metrics scrape only reads it through
+ * The pause belongs to the relay thread alone: [publish], internal to the
+ * starter, neither waits for it nor lifts it, and a metrics scrape only reads it through
  * [paused].
  * Each poll first takes a database lock held until its batch commits, so only
  * one relay publishes at a time across replicas and no batch overtakes
