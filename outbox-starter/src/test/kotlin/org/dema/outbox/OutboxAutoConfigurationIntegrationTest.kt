@@ -2,14 +2,21 @@ package org.dema.outbox
 
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
 import assertk.assertions.isNotNull
 import assertk.assertions.isTrue
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.getBean
 import org.springframework.beans.factory.getBeansOfType
 import org.springframework.boot.autoconfigure.AutoConfigurations
+import org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration
+import org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration
+import org.springframework.boot.micrometer.metrics.autoconfigure.export.simple.SimpleMetricsExportAutoConfiguration
+import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -137,6 +144,39 @@ class OutboxAutoConfigurationIntegrationTest {
         runner.run { context ->
             assertThat(context.getBeansOfType<OutboxStore>().size).isEqualTo(1)
         }
+    }
+
+    @Test
+    fun `actuator registry exposes the outbox gauges`() {
+        runner
+            .withConfiguration(
+                AutoConfigurations.of(
+                    MetricsAutoConfiguration::class.java,
+                    CompositeMeterRegistryAutoConfiguration::class.java,
+                    SimpleMetricsExportAutoConfiguration::class.java,
+                ),
+            )
+            .run { context ->
+                assertThat(context.getBean<MeterRegistry>().find("outbox.relay.paused").gauge(), "relay pause invisible to the scraper")
+                    .isNotNull()
+            }
+    }
+
+    @Test
+    fun `metrics back off without a meter registry`() {
+        runner.run { context ->
+            assertThat(context.containsBean("outboxMetrics"), "gauges registered with no registry to scrape them").isFalse()
+        }
+    }
+
+    @Test
+    fun `metrics back off when micrometer classes are filtered out`() {
+        runner
+            .withBean(SimpleMeterRegistry::class.java)
+            .withClassLoader(FilteredClassLoader("io.micrometer"))
+            .run { context ->
+                assertThat(context.containsBean("outboxMetrics"), "starter demanded micrometer from a service without it").isFalse()
+            }
     }
 
     @Test

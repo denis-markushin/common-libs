@@ -4,7 +4,9 @@ import assertk.assertAll
 import assertk.assertThat
 import assertk.assertions.containsExactly
 import assertk.assertions.hasSize
+import assertk.assertions.isBetween
 import assertk.assertions.isEqualTo
+import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import assertk.assertions.isTrue
 import liquibase.Contexts
@@ -24,6 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.sql.DriverManager
 import java.util.UUID
+import kotlin.random.Random
 
 @Testcontainers
 class OutboxStoreIntegrationTest {
@@ -232,6 +235,61 @@ class OutboxStoreIntegrationTest {
         lock { other = lock(schema) }
         assertThat(other, "relay lock of one outbox table blocked another").isEqualTo(true)
     }
+
+    @Test
+    fun `backlog counts pending events below the dead limit`() {
+        val limit = Random.nextInt(1, 6)
+        val count = Random.nextInt(2, 9)
+        repeat(count) { event(Random.nextLong(0, 900)) }
+        event(Random.nextLong(0, 900)).also { id -> repeat(limit) { store.markFailed(id, "Record of ${Random.nextInt()} bytes") } }
+        store.markPublished(event(Random.nextLong(0, 900)))
+        assertThat(store.backlog(limit).pending, "backlog counted events the relay no longer owes").isEqualTo(count.toLong())
+    }
+
+    @Test
+    fun `backlog counts dead events at the dead limit`() {
+        val limit = Random.nextInt(1, 6)
+        val count = Random.nextInt(1, 5)
+        repeat(count) { event(Random.nextLong(0, 900)).also { id -> repeat(limit) { store.markFailed(id, "Serialization failed") } } }
+        event(Random.nextLong(0, 900))
+        event(Random.nextLong(0, 900))
+            .also { id -> repeat(limit) { store.markFailed(id, "Serialization failed") } }
+            .also(store::markPublished)
+        assertThat(store.backlog(limit).dead, "dead count missed or invented events").isEqualTo(count.toLong())
+    }
+
+    @Test
+    fun `backlog measures how long the oldest pending event waits`() {
+        val wait = Random.nextLong(120, 86_400)
+        event(wait)
+        event(Random.nextLong(0, 100))
+        val age = store.backlog(Random.nextInt(1, 6)).age?.inWholeSeconds
+        assertThat(age, "stuck head looks fresher than it is").isNotNull().isBetween(wait, wait + 5)
+    }
+
+    @Test
+    fun `backlog age skips a dead event ahead of the pending ones`() {
+        val limit = Random.nextInt(1, 6)
+        val wait = Random.nextLong(120, 86_400)
+        event(wait * 2).also { id -> repeat(limit) { store.markFailed(id, "Invalid record") } }
+        event(wait)
+        assertThat(store.backlog(limit).age?.inWholeSeconds, "dead event kept aging the relay head").isNotNull().isBetween(wait, wait + 5)
+    }
+
+    @Test
+    fun `backlog has no age without pending events`() {
+        store.markPublished(event(Random.nextLong(60, 86_400)))
+        assertThat(store.backlog(Random.nextInt(1, 6)).age, "drained outbox reported a stuck head").isNull()
+    }
+
+    private fun event(age: Long): UUID =
+        UUID.randomUUID().also { id ->
+            jdbc.update(
+                "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, created_at) " +
+                    "values (?, ?, 'Till', 'Opened', '{}'::jsonb, now() - make_interval(secs => ?))",
+                id, UUID.randomUUID(), age,
+            )
+        }
 
     private fun singleConnectionDataSource(): SingleConnectionDataSource =
         SingleConnectionDataSource(pg.jdbcUrl, pg.username, pg.password, true).apply {
