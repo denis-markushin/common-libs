@@ -51,16 +51,16 @@ dual-write inconsistency.
 
 ## Configuration
 
-| Property                        | Default    | Description                                                                       |
-|---------------------------------|------------|-----------------------------------------------------------------------------------|
-| `dema.outbox.enabled`           | `true`     | Master switch for the whole starter                                               |
-| `dema.outbox.topic`             | (required) | Kafka topic to publish to                                                         |
-| `dema.outbox.poll-interval-ms`  | `1000`     | Relay poll interval; also the wait after a first poll that delivered nothing      |
-| `dema.outbox.batch-size`        | `100`      | Rows per poll                                                                     |
-| `dema.outbox.max-attempts`      | `5`        | Event is dead after this many failures of the event itself                        |
-| `dema.outbox.send-timeout-ms`   | `10000`    | Max wait per Kafka send acknowledgement                                           |
-| `dema.outbox.max-backoff-ms`    | `60000`    | Cap of that wait, which doubles per poll that delivered nothing; `0` turns it off |
-| `dema.outbox.liquibase.enabled` | `true`     | Auto-create the `outbox_events` table                                             |
+| Property                        | Default    | Description                                                                                |
+|---------------------------------|------------|--------------------------------------------------------------------------------------------|
+| `dema.outbox.enabled`           | `true`     | Master switch for the whole starter                                                        |
+| `dema.outbox.topic`             | (required) | Kafka topic to publish to                                                                  |
+| `dema.outbox.poll-interval-ms`  | `1000`     | Relay poll interval; also the wait after a first poll that found events but delivered none |
+| `dema.outbox.batch-size`        | `100`      | Rows per poll                                                                              |
+| `dema.outbox.max-attempts`      | `5`        | Event is dead after this many failures of the event itself                                 |
+| `dema.outbox.send-timeout-ms`   | `10000`    | Max wait per Kafka send acknowledgement                                                    |
+| `dema.outbox.max-backoff-ms`    | `60000`    | Cap of that wait, which doubles per such poll in a row; `0` turns it off                   |
+| `dema.outbox.liquibase.enabled` | `true`     | Auto-create the `outbox_events` table                                                      |
 
 Metrics need no property: with `spring-boot-starter-actuator` the starter
 registers its [gauges](#metrics), without Micrometer it skips them.
@@ -113,19 +113,21 @@ published_at (timestamptz), seq (bigint identity)`.
   `tcp_keepintvl` and `tcp_keepcnt`, or an `idle_transaction_timeout` above
   `max.block.ms` plus `send-timeout-ms`.
 - **Kafka outage:** the first failed send ends the poll. After a poll that
-  delivered nothing the relay retries in `poll-interval-ms`, its usual
-  interval, and waits twice as long after each further such poll, up to
-  `max-backoff-ms`; a poll that delivers anything lifts the pause. Any failure
-  outside the event itself (broker unreachable or unresolvable, metadata or
-  delivery timeout, `send-timeout-ms` expiring, authentication, ACL) records
-  `last_error` but never counts toward `max-attempts`, so a broker outage of
-  any length leaves events alive. A send interrupted by shutdown records
-  nothing. Alert on the [metrics](#metrics) rather than on the error logs.
+  found events but delivered none the relay retries in `poll-interval-ms`, its
+  usual interval, and waits twice as long after each further such poll, up to
+  `max-backoff-ms`; a poll that delivers anything, or finds nothing to send,
+  lifts the pause. Any failure outside the event itself (broker unreachable or
+  unresolvable, metadata or delivery timeout, `send-timeout-ms` expiring,
+  authentication, ACL) records `last_error` but never counts toward
+  `max-attempts`, so a broker outage of any length leaves events alive. A send
+  interrupted by shutdown records nothing. Alert on the [metrics](#metrics)
+  rather than on the error logs.
 - **Producer timeouts:** a failed send holds the relay's database connection
   for up to the producer's `max.block.ms` (60 s by default) when
-  `KafkaTemplate.send` itself blocks on missing metadata or a full buffer, or
-  for up to `send-timeout-ms` while it waits for the acknowledgement. Lower
-  `max.block.ms` to a few seconds, e.g.
+  `KafkaTemplate.send` itself blocks on missing metadata or a full buffer,
+  plus up to `send-timeout-ms` while it waits for the acknowledgement; every
+  send of a batch can take that long. Lower `max.block.ms` to a few seconds,
+  e.g.
   ```yaml
   spring.kafka.producer.properties:
     max.block.ms: 5000
@@ -165,12 +167,12 @@ a service that builds its `MeterRegistry` without it binds the
 `outboxMetrics` bean itself. Turn them off with
 `management.metrics.enable.outbox=false`.
 
-| Gauge                                                           | Meaning                                                              |
-|-----------------------------------------------------------------|----------------------------------------------------------------------|
-| `outbox.events.pending` (`outbox_events_pending`)               | Unpublished events the relay still tries to send; dead ones excluded |
-| `outbox.events.oldest.age` (`outbox_events_oldest_age_seconds`) | Seconds the oldest pending event has waited; `0` when none is        |
-| `outbox.events.dead` (`outbox_events_dead`)                     | Unpublished events with `attempts >= max-attempts`                   |
-| `outbox.relay.paused` (`outbox_relay_paused`)                   | `1` from a relay poll that delivered nothing until one that delivers |
+| Gauge                                                           | Meaning                                                                                          |
+|-----------------------------------------------------------------|--------------------------------------------------------------------------------------------------|
+| `outbox.events.pending` (`outbox_events_pending`)               | Unpublished events the relay still tries to send; dead ones excluded                             |
+| `outbox.events.oldest.age` (`outbox_events_oldest_age_seconds`) | Seconds the oldest pending event has waited; `0` when none is                                    |
+| `outbox.events.dead` (`outbox_events_dead`)                     | Unpublished events with `attempts >= max-attempts`                                               |
+| `outbox.relay.paused` (`outbox_relay_paused`)                   | `1` from a relay poll that found events but delivered none until one that delivers or finds none |
 
 - **Sampling:** a scrape never touches the database. It reads the last
   sample and asks the `outbox-metrics` thread for a fresh one, so the
@@ -193,7 +195,7 @@ a service that builds its `MeterRegistry` without it binds the
   paused, a poison pill as a dead count above zero. Give the age rule a
   `for`: the first scrape after a gap in scraping reads the age grown since
   the last sample, which the next sample corrects. Keep `max-backoff-ms` well
-  below the window of the paused rule: one poll that delivered nothing holds
+  below the window of the paused rule: one poll that found events but delivered none holds
   the gauge at `1` for the whole wait, even if the broker recovers sooner.
   For example:
   ```yaml
