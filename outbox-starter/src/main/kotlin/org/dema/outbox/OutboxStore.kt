@@ -3,6 +3,15 @@ package org.dema.outbox
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.RowMapper
 import java.util.UUID
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+/** Unpublished events split into the ones the relay still owes and the dead ones, plus how long the oldest owed one waits. */
+internal data class Backlog(
+    val pending: Long,
+    val dead: Long,
+    val age: Duration?,
+)
 
 internal data class OutboxRow(
     val id: UUID,
@@ -83,6 +92,26 @@ internal class OutboxStore(
             error, id,
         )
     }
+
+    /** One pass over the unpublished rows; the age of the relay head comes from the database clock. */
+    fun backlog(maxAttempts: Int): Backlog =
+        jdbc.queryForObject(
+            """
+            select count(*) filter (where attempts < ?) as pending,
+                   count(*) filter (where attempts >= ?) as dead,
+                   extract(epoch from now() - (
+                       select created_at
+                       from outbox_events
+                       where published_at is null and attempts < ?
+                       order by seq
+                       limit 1
+                   )) as age
+            from outbox_events
+            where published_at is null
+            """.trimIndent(),
+            { rs, _ -> Backlog(rs.getLong("pending"), rs.getLong("dead"), rs.getBigDecimal("age")?.toDouble()?.seconds) },
+            maxAttempts, maxAttempts, maxAttempts,
+        )!!
 
     private companion object {
         val ROW_MAPPER = RowMapper { rs, _ ->
