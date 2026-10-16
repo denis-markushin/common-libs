@@ -5,57 +5,39 @@ import assertk.assertions.contains
 import assertk.assertions.isFalse
 import assertk.assertions.isTrue
 import org.junit.jupiter.api.Test
+import org.springframework.boot.SpringApplication
 import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.actuate.autoconfigure.endpoint.expose.IncludeExcludeEndpointFilter
 import org.springframework.boot.actuate.endpoint.EndpointId
 import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint
-import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.builder.SpringApplicationBuilder
-import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration
+import org.springframework.boot.micrometer.metrics.autoconfigure.export.prometheus.PrometheusMetricsExportAutoConfiguration
 import org.springframework.boot.web.server.context.WebServerApplicationContext
+import org.springframework.context.annotation.Import
+import org.springframework.core.env.StandardEnvironment
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Duration
 
-class ActuatorAutoConfigurationTest {
-
-    private val contextRunner = ApplicationContextRunner()
-        .withConfiguration(AutoConfigurations.of(ActuatorAutoConfiguration::class.java))
+class ActuatorEnvironmentPostProcessorTest {
 
     @Test
     fun `heapdump is not exposed over web by default`() {
-        contextRunner.run { ctx ->
-            assertThat(
-                IncludeExcludeEndpointFilter(ExposableWebEndpoint::class.java, ctx.environment, "management.endpoints.web.exposure")
-                    .match(EndpointId.of("heapdump")),
-                "heap dump full of application secrets is exposed over web",
-            ).isFalse()
-        }
+        assertThat(exposed("heapdump"), "heap dump full of application secrets is exposed over web").isFalse()
     }
 
     @Test
     fun `health is exposed over web by default`() {
-        contextRunner.run { ctx ->
-            assertThat(
-                IncludeExcludeEndpointFilter(ExposableWebEndpoint::class.java, ctx.environment, "management.endpoints.web.exposure")
-                    .match(EndpointId.of("health")),
-                "health probes cannot reach the health endpoint",
-            ).isTrue()
-        }
+        assertThat(exposed("health"), "health probes cannot reach the health endpoint").isTrue()
     }
 
     @Test
     fun `prometheus is exposed over web by default`() {
-        contextRunner.run { ctx ->
-            assertThat(
-                IncludeExcludeEndpointFilter(ExposableWebEndpoint::class.java, ctx.environment, "management.endpoints.web.exposure")
-                    .match(EndpointId.of("prometheus")),
-                "metrics scraper cannot reach the prometheus endpoint",
-            ).isTrue()
-        }
+        assertThat(exposed("prometheus"), "metrics scraper cannot reach the prometheus endpoint").isTrue()
     }
 
     @Test
@@ -77,11 +59,18 @@ class ActuatorAutoConfigurationTest {
             }
     }
 
+    private fun exposed(endpoint: String): Boolean =
+        StandardEnvironment()
+            .also { ActuatorEnvironmentPostProcessor().postProcessEnvironment(it, SpringApplication()) }
+            .let { IncludeExcludeEndpointFilter(ExposableWebEndpoint::class.java, it, "management.endpoints.web.exposure") }
+            .match(EndpointId.of(endpoint))
+
     /**
-     * Bare application that boots every auto-configuration on the test classpath,
-     * so the request reaches the same endpoints a service built on service-core serves.
+     * Application that parses the Prometheus export ahead of every auto-configuration,
+     * the order a real service with a long classpath ends up in.
      */
     @SpringBootConfiguration(proxyBeanMethods = false)
+    @Import(MetricsAutoConfiguration::class, PrometheusMetricsExportAutoConfiguration::class)
     @EnableAutoConfiguration
     class MetricsApplication
 }
