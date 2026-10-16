@@ -1,4 +1,5 @@
 org.springframework.boot.EnvironmentPostProcessor=\
-  org.dema.servicecore.DemaLogbookEnvironmentPostProcessor
+  org.dema.servicecore.DemaLogbookEnvironmentPostProcessor,\
+  org.dema.servicecore.ActuatorEnvironmentPostProcessor
 org.springframework.context.ApplicationListener=\
   org.dema.servicecore.UtcTimeZoneListener
