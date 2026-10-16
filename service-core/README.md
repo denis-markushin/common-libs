@@ -1,5 +1,11 @@
 # Service core
 
+- [HTTP exchange logging](#http-exchange-logging)
+  - [Logging bodies](#logging-bodies)
+- [Actuator](#actuator)
+  - [Exposing more endpoints](#exposing-more-endpoints)
+- [Time zone](#time-zone)
+
 Spring Boot defaults shared across services: Jetty, validation, Jackson
 Kotlin, SpringDoc, Actuator, HTTP exchange logging with Logbook, and a UTC
 JVM default time zone.
@@ -56,6 +62,10 @@ Set `logbook.enabled=false` to turn exchange logging off entirely.
 Only `health` and `prometheus` are exposed over HTTP. They are what the
 platform relies on: health checks call `/actuator/health`, and Prometheus
 scrapes `/actuator/prometheus`.
+
+service-core brings the Prometheus registry (`micrometer-registry-prometheus`),
+so `/actuator/prometheus` serves every Micrometer meter of the service. Set
+`management.prometheus.metrics.export.enabled=false` to stop the export.
 
 Every other endpoint stays off by default. `env`, `configprops` and
 `threaddump` reveal configuration, a heap dump holds every secret the
