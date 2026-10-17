@@ -5,6 +5,7 @@
 - [Actuator](#actuator)
   - [Exposing more endpoints](#exposing-more-endpoints)
 - [Time zone](#time-zone)
+- [Defaults](#defaults)
 
 Spring Boot defaults shared across services: Jetty, validation, Jackson
 Kotlin, SpringDoc, Actuator, HTTP exchange logging with Logbook, and a UTC
@@ -14,7 +15,8 @@ JVM default time zone.
 
 Logbook is on by default for requests under `/api/**` and writes JSON at
 `TRACE` (service-core raises `org.zalando.logbook` to `TRACE` for you). The
-defaults live in `logbook.properties`; any `logbook.*` property you set wins.
+defaults live in `org/dema/servicecore/logbook.properties`; any `logbook.*`
+property you set wins (see [Defaults](#defaults)).
 
 Only metadata is logged: method, URI, status, headers, and duration. Bodies
 are left out (`logbook.strategy=without-body`), since a payment or fiscal
@@ -67,6 +69,10 @@ service-core brings the Prometheus registry (`micrometer-registry-prometheus`),
 so `/actuator/prometheus` serves every Micrometer meter of the service. Set
 `management.prometheus.metrics.export.enabled=false` to stop the export.
 
+Every meter carries an `application` tag with the service's
+`spring.application.name` (`unknown` when the service sets none), so
+dashboards and alerts tell services apart.
+
 Every other endpoint stays off by default. `env`, `configprops` and
 `threaddump` reveal configuration, a heap dump holds every secret the
 application has loaded, and `loggers` accepts writes that change log levels at
@@ -106,3 +112,14 @@ property to turn this off.
 
 > **Behavior change.** Earlier versions left the JVM default untouched. A
 > service that set `TimeZone.setDefault` itself can drop that call.
+
+## Defaults
+
+service-core's defaults live next to its classes, in
+`org/dema/servicecore/actuator.properties`, `service-core.properties` and
+`logbook.properties`. An `EnvironmentPostProcessor` adds them before any
+configuration class is parsed, so every condition sees them, at the lowest
+precedence: any property the service sets in `application.yml`, the config
+server, environment variables or test properties wins. Values passed to
+`SpringApplication.setDefaultProperties` and files a service loads with
+`@PropertySource` rank below them.
