@@ -12,7 +12,7 @@ Supplies a jOOQ `Database` implementation that applies Liquibase migrations in a
    ```
 2. Add dependency for code generation:
    ```kotlin
-   jooqGenerator("org.dema:jooq-liquibase-testcontainer:x.x.x")
+   jooqGenerator("io.github.denis-markushin:jooq-liquibase-testcontainer:x.x.x")
    ```
 3. Configure the database:
     ```kotlin
