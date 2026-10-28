@@ -6,3 +6,6 @@ scalar BigDecimal
 
 "Long integer (64-bit signed)"
 scalar Long
+
+"Calendar date without time, ISO-8601 (YYYY-MM-DD)"
+scalar Date

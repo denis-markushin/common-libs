@@ -3,3 +3,9 @@ scalar LocalDateTime
 
 "Base64-encoded binary payload"
 scalar Base64
+
+"E-mail address: one @, no whitespace, a dot in the domain, at most 254 characters"
+scalar Email
+
+"Phone number in E.164 (+79001234567); input may contain spaces, dashes, dots and parentheses"
+scalar Phone
