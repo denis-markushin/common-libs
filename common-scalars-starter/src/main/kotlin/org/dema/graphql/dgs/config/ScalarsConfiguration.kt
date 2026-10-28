@@ -3,6 +3,8 @@ package org.dema.graphql.dgs.config
 import org.dema.graphql.dgs.LocalDateTimeScalar
 import org.dema.graphql.dgs.scalar.Base64Scalar
 import org.dema.graphql.dgs.scalar.BaseLocalDateTimeScalar
+import org.dema.graphql.dgs.scalar.EmailScalar
+import org.dema.graphql.dgs.scalar.PhoneScalar
 import org.dema.graphql.dgs.scalar.ZuluLocalDateTimeScalar
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -28,4 +30,10 @@ class ScalarsConfiguration {
 
     @Bean
     fun base64Scalar(): Base64Scalar = Base64Scalar()
+
+    @Bean
+    fun emailScalar(): EmailScalar = EmailScalar()
+
+    @Bean
+    fun phoneScalar(): PhoneScalar = PhoneScalar()
 }

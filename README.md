@@ -26,7 +26,7 @@ Spring Boot starters and Kotlin libraries shared across microservices, published
 | [`security-starter`](security-starter/README.md)                         | Single `SecurityFilterChain` with JWT and pluggable authentication                     |
 | [`jooq-starter`](jooq-starter/README.md)                                 | `AbstractRepository` with CRUD and upsert, pagination, timestamp listener              |
 | [`graphql-dgs-starter`](graphql-dgs-starter/README.md)                   | Netflix DGS on top of jOOQ: Relay cursor pagination and sorting                        |
-| [`common-scalars-starter`](common-scalars-starter/README.md)             | GraphQL scalars for `LocalDateTime`, Zulu time and Base64                              |
+| [`common-scalars-starter`](common-scalars-starter/README.md)             | GraphQL scalars for `LocalDateTime`, Zulu time, Base64, Email and Phone                |
 | [`outbox-starter`](outbox-starter/README.md)                             | Transactional outbox from a PostgreSQL table to Kafka                                  |
 | [`minio-starter`](minio-starter/README.md)                               | Object storage over one MinIO bucket, wired from configuration                         |
 | [`jooq-liquibase-testcontainer`](jooq-liquibase-testcontainer/README.md) | Testcontainers JDBC provider that applies Liquibase migrations to a PostgreSQL container before jOOQ codegen |

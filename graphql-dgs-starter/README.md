@@ -12,6 +12,8 @@ conventions.
 * Sorting with safe enum-to-field mapping
 * Base64-encoded cursors
 * Type-safe pagination helpers built on top of Jooq
+* Schema declarations of the DGS extended scalars `UUID`, `BigDecimal`, `Long` and `Date` (ISO-8601 `LocalDate`);
+  services must not declare them again
 
 ## Requirements
 
