@@ -1,8 +1,8 @@
-description = "JOOQ codegen database implementation that runs Liquibase migrations in a Testcontainers PostgreSQL instance"
+description = "Testcontainers JDBC provider that applies Liquibase migrations to a PostgreSQL container before jOOQ codegen"
 
 dependencies {
-    implementation("org.jooq:jooq-meta")
     implementation("org.testcontainers:testcontainers-postgresql")
     implementation("org.liquibase:liquibase-core")
     implementation("org.postgresql:postgresql")
+    testImplementation("com.willowtreeapps.assertk:assertk-jvm")
 }

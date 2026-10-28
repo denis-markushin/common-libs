@@ -29,7 +29,7 @@ Spring Boot starters and Kotlin libraries shared across microservices, published
 | [`common-scalars-starter`](common-scalars-starter/README.md)             | GraphQL scalars for `LocalDateTime`, Zulu time and Base64                              |
 | [`outbox-starter`](outbox-starter/README.md)                             | Transactional outbox from a PostgreSQL table to Kafka                                  |
 | [`minio-starter`](minio-starter/README.md)                               | Object storage over one MinIO bucket, wired from configuration                         |
-| [`jooq-liquibase-testcontainer`](jooq-liquibase-testcontainer/README.md) | jOOQ codegen `Database` that applies Liquibase migrations in Testcontainers PostgreSQL |
+| [`jooq-liquibase-testcontainer`](jooq-liquibase-testcontainer/README.md) | Testcontainers JDBC provider that applies Liquibase migrations to a PostgreSQL container before jOOQ codegen |
 | [`test-common`](test-common/README.md)                                   | assertk extensions plus Spring and Testcontainers test scaffolding                     |
 
 ## Quick start
