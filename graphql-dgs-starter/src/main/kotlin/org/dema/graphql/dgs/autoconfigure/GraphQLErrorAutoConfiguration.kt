@@ -6,6 +6,7 @@ import graphql.execution.DataFetcherExceptionHandler
 import org.dema.graphql.dgs.error.ConcealingDataFetcherExceptionHandler
 import org.dema.graphql.dgs.error.mapper.CompositeGraphQLErrorMapper
 import org.dema.graphql.dgs.error.mapper.ConflictErrorMapper
+import org.dema.graphql.dgs.error.mapper.ErrorSourceMapper
 import org.dema.graphql.dgs.error.mapper.ForbiddenErrorMapper
 import org.dema.graphql.dgs.error.mapper.GraphQLErrorMapper
 import org.dema.graphql.dgs.error.mapper.NotFoundErrorMapper
@@ -68,4 +69,8 @@ class GraphQLErrorAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(name = ["serviceUnavailableErrorMapper"])
     fun serviceUnavailableErrorMapper(): ServiceUnavailableErrorMapper = ServiceUnavailableErrorMapper()
+
+    @Bean
+    @ConditionalOnMissingBean(name = ["errorSourceMapper"])
+    fun errorSourceMapper(): ErrorSourceMapper = ErrorSourceMapper()
 }

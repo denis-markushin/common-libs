@@ -3,6 +3,7 @@ package org.dema.graphql.dgs.autoconfigure
 import assertk.assertThat
 import assertk.assertions.containsExactlyInAnyOrder
 import assertk.assertions.doesNotContain
+import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isSameInstanceAs
 import com.netflix.graphql.dgs.DgsComponent
@@ -11,10 +12,15 @@ import com.netflix.graphql.dgs.DgsQueryExecutor
 import com.netflix.graphql.dgs.springgraphql.autoconfig.DgsSpringGraphQLAutoConfiguration
 import graphql.schema.idl.SchemaParser
 import graphql.schema.idl.TypeDefinitionRegistry
+import org.dema.graphql.dgs.error.ConflictError
 import org.dema.graphql.dgs.error.RuntimeError
+import org.dema.graphql.dgs.error.exception.ConflictException
 import org.dema.graphql.dgs.error.mapper.CompositeGraphQLErrorMapper
+import org.dema.graphql.dgs.error.mapper.ErrorSourceMapper
 import org.dema.graphql.dgs.error.mapper.GraphQLErrorMapper
 import org.dema.graphql.dgs.error.mapper.NotFoundErrorMapper
+import org.dema.graphql.dgs.errormapper.SeatTakenConflictException
+import org.dema.graphql.dgs.errormapper.SeatTakenError
 import org.dema.graphql.dgs.mutation.MutationResolver
 import org.junit.jupiter.api.Test
 import org.springframework.boot.autoconfigure.AutoConfigurations
@@ -35,7 +41,7 @@ class GraphQLErrorAutoConfigurationTest {
         )
 
     @Test
-    fun `default chain registers seven mappers and core beans`() {
+    fun `default chain registers eight mappers and core beans`() {
         runner.run { ctx ->
             assertThat(ctx.getBeansOfType(GraphQLErrorMapper::class.java).keys).containsExactlyInAnyOrder(
                 "notFoundErrorMapper",
@@ -45,6 +51,7 @@ class GraphQLErrorAutoConfigurationTest {
                 "forbiddenErrorMapper",
                 "serviceUnavailableErrorMapper",
                 "springSecurityAuthErrorMapper",
+                "errorSourceMapper",
             )
             assertThat(ctx.getBean(CompositeGraphQLErrorMapper::class.java))
                 .isInstanceOf(CompositeGraphQLErrorMapper::class)
@@ -74,6 +81,7 @@ class GraphQLErrorAutoConfigurationTest {
                     "unauthorizedErrorMapper",
                     "forbiddenErrorMapper",
                     "serviceUnavailableErrorMapper",
+                    "errorSourceMapper",
                 )
             }
     }
@@ -83,6 +91,39 @@ class GraphQLErrorAutoConfigurationTest {
         val replacement = NotFoundErrorMapper()
         runner.withBean("notFoundErrorMapper", NotFoundErrorMapper::class.java, { replacement }).run { ctx ->
             assertThat(ctx.getBean("notFoundErrorMapper")).isSameInstanceAs(replacement)
+        }
+    }
+
+    @Test
+    fun `default ErrorSourceMapper can be replaced by a user bean with the same name`() {
+        val replacement = ErrorSourceMapper()
+        runner.withBean("errorSourceMapper", ErrorSourceMapper::class.java, { replacement }).run { ctx ->
+            assertThat(ctx.getBean("errorSourceMapper"), "default errorSourceMapper won over the user bean")
+                .isSameInstanceAs(replacement)
+        }
+    }
+
+    @Test
+    fun `plain ConflictException without an error source still resolves to ConflictError`() {
+        val reason = "REASON_${UUID.randomUUID()}"
+        val entityId = UUID.randomUUID()
+        runner.run { ctx ->
+            assertThat(
+                ctx.getBean(CompositeGraphQLErrorMapper::class.java)
+                    .toGraphQLError(ConflictException("seat taken", reason, "Seat", entityId)),
+                "built-in ConflictError got lost for an exception without an error source",
+            ).isEqualTo(ConflictError("seat taken", "Seat", entityId.toString(), reason))
+        }
+    }
+
+    @Test
+    fun `ConflictException with an error source answers its own error instead of ConflictError`() {
+        val error = SeatTakenError("seat ${UUID.randomUUID()} is taken")
+        runner.run { ctx ->
+            assertThat(
+                ctx.getBean(CompositeGraphQLErrorMapper::class.java).toGraphQLError(SeatTakenConflictException(error)),
+                "built-in ConflictError shadowed the error carried by the exception",
+            ).isSameInstanceAs(error)
         }
     }
 
