@@ -8,6 +8,7 @@ import assertk.assertions.isFalse
 import assertk.assertions.isSameInstanceAs
 import assertk.assertions.isTrue
 import assertk.assertions.prop
+import org.dema.jooq.audit.AuditProperties
 import org.dema.jooq.timestamps.TimestampsProperties
 import org.jooq.DSLContext
 import org.junit.jupiter.api.Test
@@ -15,6 +16,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.jooq.autoconfigure.DefaultConfigurationCustomizer
 import org.springframework.boot.test.context.FilteredClassLoader
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
+import org.springframework.security.core.context.SecurityContextHolder
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -27,9 +29,7 @@ class JooqStarterAutoConfigurationTest {
     @Test
     fun `autoconfig registers DefaultConfigurationCustomizer bean with default properties`() {
         runner.run { context ->
-            assertThat(context.getBean(DefaultConfigurationCustomizer::class.java)).isEqualTo(
-                context.getBean(DefaultConfigurationCustomizer::class.java),
-            )
+            assertThat(context.containsBean("timestampsConfigurationCustomizer")).isTrue()
         }
     }
 
@@ -53,7 +53,7 @@ class JooqStarterAutoConfigurationTest {
     fun `autoconfig disables listener when property enabled is false`() {
         runner.withPropertyValues("dema.jooq.timestamps.enabled=false")
             .run { context ->
-                assertThat(context.getBeansOfType(DefaultConfigurationCustomizer::class.java)).isEmpty()
+                assertThat(context.containsBean("timestampsConfigurationCustomizer")).isFalse()
             }
     }
 
@@ -92,5 +92,37 @@ class JooqStarterAutoConfigurationTest {
         runner.run { context ->
             assertThat(context.containsBean("timestampsSupport")).isTrue()
         }
+    }
+
+    @Test
+    fun `registers audit listener by default`() {
+        runner.run { context ->
+            assertThat(context.containsBean("auditConfigurationCustomizer"), "audit listener was not registered").isTrue()
+        }
+    }
+
+    @Test
+    fun `audit stays away when property enabled is false`() {
+        runner.withPropertyValues("dema.jooq.audit.enabled=false")
+            .run { context ->
+                assertThat(context.containsBean("auditConfigurationCustomizer"), "audit listener ignored the property").isFalse()
+            }
+    }
+
+    @Test
+    fun `audit stays away without Spring Security on the classpath`() {
+        runner.withClassLoader(FilteredClassLoader(SecurityContextHolder::class.java))
+            .run { context ->
+                assertThat(context.containsBean("auditSupport"), "audit started without Spring Security").isFalse()
+            }
+    }
+
+    @Test
+    fun `autoconfig honors custom audit column names`() {
+        runner.withPropertyValues("dema.jooq.audit.created-by-column=author", "dema.jooq.audit.updated-by-column=editor")
+            .run { context ->
+                val props = context.getBean(AuditProperties::class.java)
+                assertThat(props.createdByColumn to props.updatedByColumn, "audit ignored custom column names").isEqualTo("author" to "editor")
+            }
     }
 }
