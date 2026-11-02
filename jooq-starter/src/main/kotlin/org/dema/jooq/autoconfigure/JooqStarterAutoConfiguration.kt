@@ -1,5 +1,8 @@
 package org.dema.jooq.autoconfigure
 
+import org.dema.jooq.audit.AuditProperties
+import org.dema.jooq.audit.AuditRecordListener
+import org.dema.jooq.audit.AuditSupport
 import org.dema.jooq.timestamps.TimestampsProperties
 import org.dema.jooq.timestamps.TimestampsRecordListener
 import org.dema.jooq.timestamps.TimestampsSupport
@@ -11,11 +14,15 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.jooq.autoconfigure.DefaultConfigurationCustomizer
 import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.security.oauth2.jwt.Jwt
 import java.time.Clock
 
 /**
- * Autoconfiguration for the jooq-starter module. Wires the timestamps RecordListener and a
- * default Clock bean when no overrides are provided by the application.
+ * Autoconfiguration for the jooq-starter module. Wires the timestamps RecordListener, the audit
+ * actor RecordListener and a default Clock bean when no overrides are provided by the
+ * application.
  *
  * The listener is registered via a [DefaultConfigurationCustomizer] because Spring Boot's
  * `JooqAutoConfiguration` does NOT auto-wire `RecordListenerProvider` beans (it only wires
@@ -26,7 +33,7 @@ import java.time.Clock
  */
 @AutoConfiguration
 @ConditionalOnClass(DSLContext::class)
-@EnableConfigurationProperties(TimestampsProperties::class)
+@EnableConfigurationProperties(TimestampsProperties::class, AuditProperties::class)
 class JooqStarterAutoConfiguration {
 
     @Bean
@@ -58,4 +65,26 @@ class JooqStarterAutoConfiguration {
         clock: Clock,
         properties: TimestampsProperties,
     ): TimestampsSupport = TimestampsSupport(clock, properties)
+
+    /**
+     * Audit actor wiring, kept apart so an application runs without Spring Security on the classpath.
+     */
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(SecurityContextHolder::class, Jwt::class)
+    @ConditionalOnProperty(
+        prefix = "dema.jooq.audit",
+        name = ["enabled"],
+        havingValue = "true",
+        matchIfMissing = true,
+    )
+    class Audit {
+
+        @Bean
+        @ConditionalOnMissingBean
+        fun auditSupport(properties: AuditProperties): AuditSupport = AuditSupport(properties)
+
+        @Bean
+        fun auditConfigurationCustomizer(support: AuditSupport): DefaultConfigurationCustomizer =
+            DefaultConfigurationCustomizer { it.setAppending(AuditRecordListener(support)) }
+    }
 }

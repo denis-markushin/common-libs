@@ -1,5 +1,6 @@
 package org.dema.jooq
 
+import org.dema.jooq.audit.AuditSupport
 import org.dema.jooq.timestamps.TimestampsSupport
 import org.jooq.Condition
 import org.jooq.DSLContext
@@ -49,6 +50,13 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         private set
 
     /**
+     * Optional audit actor support. When absent, the repository writes no actor columns.
+     */
+    @Autowired(required = false)
+    protected var auditSupport: AuditSupport? = null
+        private set
+
+    /**
      * Creates a new record for the associated table.
      *
      * @return A new instance of the record type associated with the table.
@@ -57,8 +65,8 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
 
     /**
      * Inserts or updates a given record. If a conflict on primary keys occurs, the existing row will be updated.
-     * When [timestampsSupport] is configured, audit timestamps are applied before the write and the created
-     * column is preserved instead of being overwritten by the conflicting row.
+     * When [timestampsSupport] or [auditSupport] is configured, the audit columns are applied before the write
+     * and the created columns are preserved instead of being overwritten by the conflicting row.
      *
      * Inspired by the [article](https://sigpwned.com/2023/08/10/postgres-upsert-created-or-updated)
      *
@@ -68,19 +76,24 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
     @Suppress("UNCHECKED_CAST")
     fun upsert(record: R): UpsertResult<R> {
         timestampsSupport?.apply(record)
-        return buildUpsert(dsl, table, record, timestampsSupport?.createdColumn())
+        auditSupport?.apply(record)
+        return buildUpsert(dsl, table, record, setOfNotNull(timestampsSupport?.createdColumn(), auditSupport?.createdColumn(table)))
             .returningResult(table, field("(xmax = 0)", SQLDataType.BOOLEAN).`as`("_created"))
             .fetchOne { UpsertResult(it.value1() as R, it.value2()) }
             ?: throw IllegalStateException("Upsert operation failed to return a record for table ${table.name}")
     }
 
     /**
-     * Inserts the given record. If a conflict on primary keys occurs, no action is taken.
+     * Inserts the given record. If a conflict on primary keys occurs, no action is taken. The RecordListener
+     * does not see this statement, so the audit actor columns are applied here.
      *
      * @param record The record to insert.
      * @return The number of affected rows.
      */
-    fun insertOnConflictDoNothing(record: R): Int = dsl.insertInto(table).set(record).onConflictDoNothing().execute()
+    fun insertOnConflictDoNothing(record: R): Int {
+        auditSupport?.apply(record)
+        return dsl.insertInto(table).set(record).onConflictDoNothing().execute()
+    }
 
     /**
      * Stores multiple records in batch.
@@ -160,6 +173,13 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         .fetch()
 
     /**
+     * Current audit actor, for update statements the RecordListener does not see.
+     *
+     * @return The login of the current user, or null when there is none or audit is off.
+     */
+    protected fun actor(): String? = auditSupport?.actor()
+
+    /**
      * Creates a base query for the associated table with the base condition applied.
      *
      * @return A [SelectConditionStep] representing the base query with the base condition.
@@ -189,21 +209,21 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
 
 /**
  * Builds an insert-on-conflict-do-update step for the given table, updating every non-primary-key
- * column from the excluded row except the audit created column, which must retain its stored value.
- * When the created column is the only non-primary-key column, the `do update` clause sets it to its
- * own stored value, a no-op that preserves the row while still letting the caller detect created vs
- * updated via `xmax = 0`.
+ * column from the excluded row except the preserved columns, which must retain their stored values.
+ * When the preserved columns are the only non-primary-key columns, the `do update` clause sets the first
+ * of them to its own stored value, a no-op that keeps the row while still letting the caller detect
+ * created vs updated via `xmax = 0`. Preserved columns the table does not have are ignored.
  */
 @Suppress("UNCHECKED_CAST")
 internal fun buildUpsert(
     dsl: DSLContext,
     table: Table<*>,
     record: Record,
-    createdColumn: String?,
+    preserved: Set<String>,
 ): InsertOnDuplicateSetMoreStep<Record> {
     val pk = table.primaryKey?.fields ?: error("upsert requires a primary key on table ${table.name}")
-    val created = createdColumn?.let { table.field(it) }
-    val updatable = table.fields().filter { it !in pk && it != created }
+    val kept = preserved.mapNotNull { table.field(it) }
+    val updatable = table.fields().filter { it !in pk && it !in kept }
     val step = dsl.insertInto(table as Table<Record>)
         .set(record)
         .onConflict(pk)
@@ -212,11 +232,11 @@ internal fun buildUpsert(
         updatable.isNotEmpty() -> {
             updatable.drop(1).fold(step.setExcluded(updatable[0])) { acc, column -> acc.setExcluded(column) }
         }
-        created != null -> {
-            step.setSelf(created)
+        kept.isNotEmpty() -> {
+            step.setSelf(kept[0])
         }
         else -> {
-            error("upsert requires at least one updatable column or a created column on table ${table.name}")
+            error("upsert requires at least one updatable column or a preserved column on table ${table.name}")
         }
     }
 }

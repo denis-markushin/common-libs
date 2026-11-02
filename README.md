@@ -24,7 +24,7 @@ Spring Boot starters and Kotlin libraries shared across microservices, published
 | [`catalog`](catalog/README.md)                                           | Gradle version catalog of every module here, at one release version                    |
 | [`service-core`](service-core/README.md)                                 | Spring Boot defaults: Jetty, Jackson Kotlin, SpringDoc, Actuator, Logbook, UTC zone    |
 | [`security-starter`](security-starter/README.md)                         | Single `SecurityFilterChain` with JWT and pluggable authentication                     |
-| [`jooq-starter`](jooq-starter/README.md)                                 | `AbstractRepository` with CRUD and upsert, pagination, timestamp listener              |
+| [`jooq-starter`](jooq-starter/README.md)                                 | `AbstractRepository` with CRUD and upsert, pagination, timestamp and audit listeners   |
 | [`graphql-dgs-starter`](graphql-dgs-starter/README.md)                   | Netflix DGS on top of jOOQ: Relay cursor pagination and sorting                        |
 | [`common-scalars-starter`](common-scalars-starter/README.md)             | GraphQL scalars for `LocalDateTime`, Zulu time, Base64, Email and Phone                |
 | [`outbox-starter`](outbox-starter/README.md)                             | Transactional outbox from a PostgreSQL table to Kafka                                  |

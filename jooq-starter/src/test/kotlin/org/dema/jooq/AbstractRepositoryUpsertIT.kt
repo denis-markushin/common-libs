@@ -49,7 +49,7 @@ class AbstractRepositoryUpsertIT {
         record.set(record.field("id") as org.jooq.Field<Any>, id)
         record.set(record.field("payload") as org.jooq.Field<Any>, payload)
         TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
-        buildUpsert(dsl, table, record, "created_dt").execute()
+        buildUpsert(dsl, table, record, setOf("created_dt", "created_by")).execute()
     }
 
     @Test
@@ -91,12 +91,12 @@ class AbstractRepositoryUpsertIT {
         val first = dsl.newRecord(table)
         first.set(first.field("id") as org.jooq.Field<Any>, id)
         first.set(first.field("payload") as org.jooq.Field<Any>, "a")
-        buildUpsert(dsl, table, first, null).execute()
+        buildUpsert(dsl, table, first, emptySet()).execute()
 
         val second = dsl.newRecord(table)
         second.set(second.field("id") as org.jooq.Field<Any>, id)
         second.set(second.field("payload") as org.jooq.Field<Any>, "b")
-        buildUpsert(dsl, table, second, null).execute()
+        buildUpsert(dsl, table, second, emptySet()).execute()
 
         val payload = dsl.fetchValue("select payload from task where id = {0}", id) as String
         assertThat(payload).isEqualTo("b")
