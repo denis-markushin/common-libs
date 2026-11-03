@@ -3,7 +3,7 @@
 [![Build](https://github.com/denis-markushin/common-libs/actions/workflows/gradle-ci.yml/badge.svg)](https://github.com/denis-markushin/common-libs/actions/workflows/gradle-ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.denis-markushin/bom)](https://central.sonatype.com/artifact/io.github.denis-markushin/bom)
 [![License](https://img.shields.io/github/license/denis-markushin/common-libs)](LICENSE)
-[![JDK](https://img.shields.io/badge/JDK-21%2B-blue)](#requirements)
+[![JDK](https://img.shields.io/badge/JDK-25%2B-blue)](#requirements)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.x-brightgreen)](#requirements)
 
 - [Modules](#modules)
@@ -56,7 +56,7 @@ Each module's README lists what it configures and which properties it exposes.
 
 ## Requirements
 
-- Java 21+
+- Java 25+
 - Spring Boot 4.x
 - Kotlin is recommended; the libraries are written in it and use Kotlin-friendly APIs
 
