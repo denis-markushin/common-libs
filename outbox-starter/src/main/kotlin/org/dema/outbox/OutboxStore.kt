@@ -111,7 +111,7 @@ internal class OutboxStore(
             """.trimIndent(),
             { rs, _ -> Backlog(rs.getLong("pending"), rs.getLong("dead"), rs.getBigDecimal("age")?.toDouble()?.seconds) },
             maxAttempts, maxAttempts, maxAttempts,
-        )!!
+        )
 
     private companion object {
         val ROW_MAPPER = RowMapper { rs, _ ->
