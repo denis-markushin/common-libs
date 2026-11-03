@@ -6,7 +6,6 @@ val bomForResolutionOnly = configurations.create("bomForResolutionOnly")
     .apply {
         isCanBeConsumed = false
         isCanBeResolved = false
-        isVisible = false
     }
 
 dependencies {
@@ -14,7 +13,7 @@ dependencies {
 }
 
 configurations.all {
-    if (name != bomForResolutionOnly.name) {
+    if (name != bomForResolutionOnly.name && !name.startsWith("kover")) {
         extendsFrom(bomForResolutionOnly)
     }
 }

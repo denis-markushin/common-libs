@@ -28,13 +28,6 @@ import org.springframework.security.web.SecurityFilterChain
 @EnableConfigurationProperties(BaseSecurityProperties::class)
 class BaseSecurityAutoConfiguration {
     /**
-     * Builds the default [SecurityFilterChain] applied to the application.
-     *
-     * @param http the HTTP security builder
-     * @param customizers additional customizations applied after the base rules
-     * @return configured security filter chain
-     */
-    /**
      * Exposes the caller behind the current request.
      *
      * Registered here rather than beside the JWT beans so that it is available to
@@ -45,6 +38,13 @@ class BaseSecurityAutoConfiguration {
     @ConditionalOnMissingBean
     fun currentUser(): CurrentUser = CurrentUser()
 
+    /**
+     * Builds the default [SecurityFilterChain] applied to the application.
+     *
+     * @param http the HTTP security builder
+     * @param customizers additional customizations applied after the base rules
+     * @return configured security filter chain
+     */
     @Bean
     @Order(0)
     fun defaultSecurityFilterChain(

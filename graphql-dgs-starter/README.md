@@ -17,7 +17,7 @@ conventions.
 
 ## Requirements
 
-* Java 21+
+* Java 25+
 * Spring Boot 4.x
 * Kotlin (recommended)
 * Netflix DGS Framework

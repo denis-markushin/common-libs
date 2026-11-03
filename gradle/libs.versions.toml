@@ -1,7 +1,7 @@
 [versions]
 gradle = "9.7.1"
 
-dema-plugins = "0.2.0"
+dema-plugins = "1.9.0"
 
 # BOMs
 spring-boot = "4.0.8"
