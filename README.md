@@ -30,7 +30,7 @@ Spring Boot starters and Kotlin libraries shared across microservices, published
 | [`outbox-starter`](outbox-starter/README.md)                             | Transactional outbox from a PostgreSQL table to Kafka                                  |
 | [`minio-starter`](minio-starter/README.md)                               | Object storage over one MinIO bucket, wired from configuration                         |
 | [`jooq-liquibase-testcontainer`](jooq-liquibase-testcontainer/README.md) | Testcontainers JDBC provider that applies Liquibase migrations to a PostgreSQL container before jOOQ codegen |
-| [`test-common`](test-common/README.md)                                   | assertk extensions plus Spring and Testcontainers test scaffolding                     |
+| [`test-common`](test-common/README.md)                                   | assertk extensions, Spring and Testcontainers scaffolding, race helpers, architecture checks |
 
 ## Quick start
 
