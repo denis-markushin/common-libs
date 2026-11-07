@@ -1,5 +1,11 @@
 # Common test utils
 
+- [Assertions](#assertions)
+- [Security](#security)
+- [Containers](#containers)
+- [Concurrency](#concurrency)
+- [Checks](#checks)
+
 Assertion helpers plus the Spring and Testcontainers scaffolding that every
 service otherwise copies into its own test sources.
 
@@ -62,3 +68,48 @@ reaps them when the JVM exits.
 that belongs to the code under test, and a test asserting on bucket bootstrapping
 needs it absent. It runs the community fork `pgsty/minio`, since the upstream
 `minio/minio` repository is no longer on Docker Hub.
+
+## Concurrency
+
+`Race.run` starts one action from several threads at once, behind a barrier, and
+hands each thread its index. The threads act as the user of the test, so code that
+reads the security context sees the same caller from every thread.
+
+`Outcome.of` reduces a call to a line a test can compare: `SUCCESS`, the `reason`
+of a `ConflictException` or the class name of any other exception. Sorted, the
+outcomes of a race make one assertion:
+
+```kotlin
+val outcomes = Race.run(8) { Outcome.of { positionService.create(input()) } }
+assertThat(outcomes.sorted()).isEqualTo(List(7) { "DUPLICATE_NAME" } + "SUCCESS")
+```
+
+`Outcome` reads `ConflictException` from `graphql-dgs-starter`: without it on the
+test classpath, a failed call ends in `NoClassDefFoundError`.
+
+## Checks
+
+Architecture checks a service runs against itself. Each is an interface whose
+default methods are JUnit tests, so a test class that already extends the
+integration base of the service picks them up by implementing it; the
+`ApplicationContext` arrives as a test method parameter from `SpringExtension`.
+
+```kotlin
+class SchemaConventionTest : SchemaConvention
+
+class ResolverGuardTest : AbstractIntegrationTest(), ResolverGuard
+
+class ActuatorExposureTest : AbstractIntegrationTest(), ActuatorExposure
+```
+
+- `SchemaConvention` holds the GraphQL schema under `src/main/resources/schema`
+  against the conventions of `Deviations`: bare `*Id` fields in output types,
+  plain lists in `*Queries` namespaces, missing descriptions. Known deviations sit
+  in `src/test/resources/schema-debt.txt`, one per line; a new deviation and a debt
+  line with nothing to forgive both fail. Override `schema` or `debt` to look
+  elsewhere.
+- `ResolverGuard` requires `@PreAuthorize` on every DGS resolver class and on every
+  `@DgsEntityFetcher` method, and rejects any guard that lets an anonymous caller
+  in. It suits a service whose `/graphql` is open and guarded by method security.
+- `ActuatorExposure` fails when the actuator maps any web endpoint beyond `health`
+  and `prometheus`.

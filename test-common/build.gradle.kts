@@ -6,6 +6,9 @@ dependencies {
     // Consumers already carry these on their test runtime classpath; keeping them
     // compileOnly lets a project use only the assertion helpers without dragging
     // Spring or Testcontainers into a build that has no use for either.
+    compileOnly(project(":graphql-dgs-starter"))
+    compileOnly("org.junit.jupiter:junit-jupiter-api")
+    compileOnly("org.springframework.boot:spring-boot-actuator")
     compileOnly("org.springframework.boot:spring-boot-test")
     compileOnly("org.springframework:spring-context")
     compileOnly("org.springframework.security:spring-security-core")
@@ -15,6 +18,8 @@ dependencies {
     compileOnly("org.testcontainers:testcontainers-kafka")
     compileOnly("org.testcontainers:testcontainers-minio")
 
+    testImplementation(project(":graphql-dgs-starter"))
+    testImplementation("org.springframework.boot:spring-boot-actuator")
     testImplementation("org.springframework.boot:spring-boot-test")
     testImplementation("org.springframework:spring-context")
     testImplementation("org.springframework.security:spring-security-core")
