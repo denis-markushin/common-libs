@@ -164,6 +164,18 @@ abstract class AbstractBatchLoader<K, V>(
 }
 ```
 
+### Loading relations
+
+`load(key, LoaderClass::class)` resolves a value through the DataLoader registered for the loader class.
+`loadOrNull` does the same for an optional relation: an absent key completes with `null` without touching the
+DataLoader. The future itself is never `null` — DGS on virtual threads wraps a nullable future twice.
+
+```kotlin
+@DgsData(parentType = "Goods", field = "group")
+fun group(dfe: DgsDataFetchingEnvironment): CompletableFuture<GoodsGroup?> =
+  dfe.loadOrNull(dfe.getSourceOrThrow<Goods>().group?.id, GoodsGroupBatchLoader::class)
+```
+
 ## Mutation error handling
 
 GraphQL mutation responses follow [rule 6.6.4](https://github.com/nodkz/conf-talks/tree/master/articles/graphql/schema-design#rule-6.6.4):
