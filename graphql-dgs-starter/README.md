@@ -147,6 +147,14 @@ class UsersService(
 }
 ```
 
+When the filter and the records convert through the same `ConversionService`, `page` does the whole chain in one
+call; without a filter only the base condition of the repository applies:
+
+```kotlin
+fun getAll(relayPageable: RelayPageable, filter: UsersFilter?): Connection<User> =
+  usersRepo.page(cs, relayPageable, filter)
+```
+
 ## AbstractBatchLoader for DGS / DataLoader
 
 A lightweight base class for **mapped** DataLoader batch loading in Netflix DGS.

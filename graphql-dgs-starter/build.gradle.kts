@@ -15,4 +15,6 @@ dependencies {
     api("com.netflix.graphql.dgs:graphql-dgs-pagination")
 
     testImplementation("org.springframework.security:spring-security-core")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("org.postgresql:postgresql")
 }
