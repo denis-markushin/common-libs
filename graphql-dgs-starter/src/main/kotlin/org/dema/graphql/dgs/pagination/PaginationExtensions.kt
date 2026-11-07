@@ -14,6 +14,7 @@ import org.jooq.Record
 import org.jooq.Result
 import org.jooq.Table
 import org.jooq.UpdatableRecord
+import org.jooq.impl.DSL.noCondition
 import org.springframework.core.convert.ConversionService
 
 /**
@@ -31,6 +32,25 @@ fun <T : Table<R>, R : UpdatableRecord<*>> AbstractRepository<T, R>.getAllBy(
     seekValues = relayPageable.seekValues,
     limit = relayPageable.first + 1, // fetch one extra to detect hasNextPage in RecordsConnection
 ) { where }
+
+/**
+ * Fetches a Relay page of records and converts it into GraphQL type [V].
+ *
+ * The [filter] is turned into a jOOQ [Condition] by [cs]; without a filter only the base condition of the
+ * repository applies. Each record of the page is converted into [V] by the same [cs].
+ *
+ * @param cs conversion service that knows the filter-to-condition and record-to-[V] converters
+ * @param pageable pagination configuration
+ * @param filter GraphQL filter input, or `null` for none
+ * @return the page as a [Connection] of [V]
+ */
+inline fun <reified V : Any, T : Table<R>, R : UpdatableRecord<*>> AbstractRepository<T, R>.page(
+    cs: ConversionService,
+    pageable: RelayPageable,
+    filter: Any? = null,
+): Connection<V> = getAllBy(relayPageable = pageable, where = cs.convert<Condition>(filter) ?: noCondition())
+    .toConnection(pageable)
+    .map { cs.convert<V>(it)!! }
 
 /**
  * Converts this list of records into a GraphQL [Connection] according to
