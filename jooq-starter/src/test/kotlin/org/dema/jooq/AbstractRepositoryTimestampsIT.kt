@@ -27,7 +27,7 @@ class AbstractRepositoryTimestampsIT {
 
         init {
             dsl = TaskBase.dsl
-            ReflectionTestUtils.setField(this, "timestampsSupport", TimestampsSupport(Clock.fixed(moment, ZoneOffset.UTC), TimestampsProperties()))
+            ReflectionTestUtils.setField(this, "timestampsSupport", TimestampsSupport(Clock.fixed(moment, ZoneOffset.UTC), TimestampsProperties(createdAtColumn = "opened_at", updatedAtColumn = "edited_at")))
         }
     }
 
@@ -38,7 +38,7 @@ class AbstractRepositoryTimestampsIT {
         set(TASK.PAYLOAD, "ostatok-${UUID.randomUUID()}")
     }
 
-    private fun created(id: UUID): Instant? = TaskBase.dsl.fetchOne(TASK, TASK.ID.eq(id))!!.get(TASK.CREATED_AT)?.toInstant()
+    private fun created(id: UUID): Instant? = TaskBase.dsl.fetchOne(TASK, TASK.ID.eq(id))!!.get(TASK.OPENED_AT)?.toInstant()
 
     @Test
     fun `insertOnConflictDoNothing fills the created column`() {
