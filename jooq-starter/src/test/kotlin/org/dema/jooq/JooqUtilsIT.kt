@@ -101,4 +101,14 @@ class JooqUtilsIT {
         val page = JooqUtils.paginate(TaskBase.dsl, query(prefix), OffsetBasedPageRequest(offset.toLong(), size.toLong(), Sort.by(Sort.Direction.DESC, "payload")))
         assertThat(page.content.map { it.get(TASK.PAYLOAD) }, "pageable sort was ignored").isEqualTo(all.sortedDescending().drop(offset).take(size))
     }
+
+    @Test
+    fun `first page of a descending sort is not the last page`() {
+        val prefix = "${word()}-"
+        val count = Random.nextInt(4, 10)
+        rows(prefix, count)
+        val limit = Random.nextLong(1, count.toLong())
+        val page = JooqUtils.paginate(TaskBase.dsl, query(prefix), arrayOf<SortField<*>>(TASK.PAYLOAD.desc()), limit, 0)
+        assertThat(page.map { it.get("last_page", Boolean::class.java) }, "first page of a descending sort claimed to be the last").isEqualTo(List(limit.toInt()) { false })
+    }
 }
