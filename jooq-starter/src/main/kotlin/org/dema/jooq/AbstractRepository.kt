@@ -85,12 +85,13 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
 
     /**
      * Inserts the given record. If a conflict on primary keys occurs, no action is taken. The RecordListener
-     * does not see this statement, so the audit actor columns are applied here.
+     * does not see this statement, so the timestamp and audit actor columns are applied here.
      *
      * @param record The record to insert.
      * @return The number of affected rows.
      */
     fun insertOnConflictDoNothing(record: R): Int {
+        timestampsSupport?.apply(record)
         auditSupport?.apply(record)
         return dsl.insertInto(table).set(record).onConflictDoNothing().execute()
     }

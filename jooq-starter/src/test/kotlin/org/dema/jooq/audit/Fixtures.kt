@@ -15,6 +15,7 @@ import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
@@ -31,6 +32,8 @@ class TaskTable : TableImpl<TaskRecord>(DSL.name("task")) {
     val PAYLOAD: TableField<TaskRecord, String?> = createField(DSL.name("payload"), SQLDataType.CLOB, this, "")
     val CREATED_BY: TableField<TaskRecord, String?> = createField(DSL.name("created_by"), SQLDataType.CLOB, this, "")
     val UPDATED_BY: TableField<TaskRecord, String?> = createField(DSL.name("updated_by"), SQLDataType.CLOB, this, "")
+    val CREATED_AT: TableField<TaskRecord, OffsetDateTime?> = createField(DSL.name("created_at"), SQLDataType.TIMESTAMPWITHTIMEZONE, this, "")
+    val UPDATED_AT: TableField<TaskRecord, OffsetDateTime?> = createField(DSL.name("updated_at"), SQLDataType.TIMESTAMPWITHTIMEZONE, this, "")
 
     override fun getRecordType(): Class<TaskRecord> = TaskRecord::class.java
 
@@ -50,7 +53,7 @@ object TaskBase {
 
     val dsl: DSLContext by lazy {
         connect().also {
-            it.execute("create table task (id uuid primary key, payload text, created_by text, updated_by text)")
+            it.execute("create table task (id uuid primary key, payload text, created_by text, updated_by text, created_at timestamptz, updated_at timestamptz)")
         }
     }
 
