@@ -39,8 +39,10 @@ private val log = KotlinLogging.logger {}
  * A tick polls again while the previous poll delivered a whole batch, so a
  * backlog drains in one tick instead of one batch per poll interval. A tick
  * whose polls did not fail then deletes events published more than
- * `retention` ago, a batch per statement until a statement finds fewer; a
- * failed purge is logged and leaves the pause alone.
+ * `retention` ago, a batch per statement, one statement per poll plus one,
+ * so the purge keeps pace with publication while a long expired tail
+ * spreads over later ticks instead of holding the relay; a failed purge is
+ * logged and leaves the pause alone.
  */
 class OutboxPublisher internal constructor(
     private val store: OutboxStore,
@@ -79,15 +81,17 @@ class OutboxPublisher internal constructor(
     internal fun tick() {
         if (!backoff.ready()) return
         try {
+            var polls = 0
             do {
                 val poll = poll()
+                polls++
                 when (poll) {
                     Poll.BUSY -> log.debug { "Outbox relay skipped a poll of ${props.topic} while another relay holds the lock" }
                     Poll.STALLED -> backoff.fail()
                     Poll.DONE, Poll.FULL -> backoff.clear()
                 }
             } while (poll == Poll.FULL && !Thread.currentThread().isInterrupted)
-            purge()
+            purge(polls)
         } catch (e: Throwable) {
             log.error(e) { "Outbox relay poll failed" }
             backoff.fail()
@@ -112,12 +116,13 @@ class OutboxPublisher internal constructor(
         }
     }
 
-    private fun purge() {
+    private fun purge(polls: Int) {
         if (props.retention.isZero) return
         try {
-            do {
+            repeat(polls + 1) {
                 val count = store.purge(props.retention.toKotlinDuration(), props.batchSize)
-            } while (count == props.batchSize && !Thread.currentThread().isInterrupted)
+                if (count < props.batchSize || Thread.currentThread().isInterrupted) return
+            }
         } catch (e: Throwable) {
             log.warn(e) { "Outbox relay failed to purge events published more than ${props.retention} ago" }
         }

@@ -93,11 +93,13 @@ published_at (timestamptz), seq (bigint identity)`, plus the partial indexes
   in one go rather than at `batch-size` events per interval.
 - **Retention:** after its polls, the relay deletes events published more
   than `retention` ago, by the database clock, `batch-size` rows per
-  statement until a statement finds fewer, so it keeps pace with
-  publication. An unpublished event is never deleted, however old or dead.
-  A failed purge logs a warning and leaves the relay unpaused; the next
-  poll retries it. Replicas purge side by side and skip each other's rows.
-  `retention: 0` keeps every published event.
+  statement. A tick runs one statement per poll plus one and stops early
+  once a statement finds fewer rows, so the purge keeps pace with
+  publication and a long expired tail drains over later ticks without
+  holding back publication. An unpublished event is never deleted, however
+  old or dead. A failed purge logs a warning and leaves the relay
+  unpaused; the next tick retries it. Replicas purge side by side and skip
+  each other's rows. `retention: 0` keeps every published event.
 - **Ordering:** rows are published in `seq` (insertion) order and keyed by
   `aggregate_id`, so per-aggregate order is preserved within a partition. A
   failed send ends the poll and the next poll starts from that row, so later
@@ -230,15 +232,12 @@ a service that builds its `MeterRegistry` without it binds the
 - **Published events are deleted:** 6.0.0 deletes events published more than
   7 days ago. To keep the history, set `dema.outbox.retention: 0` before
   the upgrade.
-- **First purge:** the first tick after the upgrade deletes everything
-  older than `retention` before the relay polls again, so on a large table
-  publication pauses until it catches up. To avoid that, delete old rows in
-  chunks before the upgrade.
-- **Index:** the changeset adds `idx_outbox_published` with a plain
-  `create index`, which blocks inserts into `outbox_events` while it builds.
-  On a large table, create it beforehand without blocking; the changeset
-  then skips it:
-  ```sql
-  create index concurrently if not exists idx_outbox_published
-      on outbox_events (published_at) where published_at is not null;
-  ```
+- **Expired tail:** events that piled up before the upgrade drain over later
+  ticks. Each tick deletes up to one `batch-size` more than its polls could
+  publish, two batches on an idle tick, so a large table shrinks over hours
+  without stalling the relay.
+- **Index:** the changeset builds `idx_outbox_published` with
+  `create index concurrently`, so inserts into `outbox_events` go on while
+  it builds. It waits for transactions already running in the database, so
+  a long-running one delays startup. A build cut short leaves an invalid
+  index; the next startup drops it and builds it again.

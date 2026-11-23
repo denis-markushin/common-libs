@@ -8,6 +8,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
+import java.util.UUID
 
 @Testcontainers
 class OutboxLiquibaseMigratorIntegrationTest {
@@ -40,13 +41,33 @@ class OutboxLiquibaseMigratorIntegrationTest {
     fun `migrator indexes published events for the purge`() {
         val ds = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
         OutboxLiquibaseMigrator(ds).afterPropertiesSet()
-        val index = JdbcTemplate(ds).queryForObject(
+        assertThat(published(JdbcTemplate(ds)), "purge scans the whole outbox table").isEqualTo(1)
+    }
+
+    @Test
+    fun `migrator rebuilds a published index that a failed build left invalid`() {
+        val ds = database()
+        val jdbc = JdbcTemplate(ds)
+        OutboxLiquibaseMigrator(ds).afterPropertiesSet()
+        jdbc.update("update pg_index set indisvalid = false where indexrelid = 'idx_outbox_published'::regclass")
+        jdbc.update("delete from databasechangelog where id = 'outbox-events-published-index'")
+        OutboxLiquibaseMigrator(ds).afterPropertiesSet()
+        assertThat(published(jdbc), "purge kept an index that a killed build left unusable").isEqualTo(1)
+    }
+
+    private fun database(): DriverManagerDataSource {
+        val name = "outbox_${UUID.randomUUID().toString().replace("-", "")}"
+        JdbcTemplate(DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)).execute("create database $name")
+        return DriverManagerDataSource("jdbc:postgresql://${pg.host}:${pg.getMappedPort(5432)}/$name", pg.username, pg.password)
+    }
+
+    private fun published(jdbc: JdbcTemplate): Int? =
+        jdbc.queryForObject(
             """
-            select count(*) from pg_indexes
-            where indexname = 'idx_outbox_published' and indexdef like '%(published_at)%WHERE (published_at IS NOT NULL)'
+            select count(*) from pg_index
+            where indexrelid = to_regclass('idx_outbox_published') and indisvalid
+              and pg_get_indexdef(indexrelid) like '%(published_at)%WHERE (published_at IS NOT NULL)'
             """.trimIndent(),
             Int::class.java,
         )
-        assertThat(index, "purge scans the whole outbox table").isEqualTo(1)
-    }
 }
