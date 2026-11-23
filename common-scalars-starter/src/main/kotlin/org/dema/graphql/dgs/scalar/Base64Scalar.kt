@@ -32,6 +32,9 @@ class Base64Scalar : Coercing<ByteArray, String> {
             CoercingParseLiteralException("Invalid Base64 literal: ${it.message}", it)
         }
 
+    override fun valueToLiteral(input: Any, graphQLContext: GraphQLContext, locale: Locale): Value<*> =
+        StringValue.of(serialize(input, graphQLContext, locale))
+
     private fun decode(value: String, error: (IllegalArgumentException) -> Exception): ByteArray =
         try {
             Base64.getDecoder().decode(value)

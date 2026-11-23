@@ -65,6 +65,26 @@ class Base64ScalarTest {
         assertFailure { Base64Scalar().serialize(word(Random.nextInt(1, 30)), GraphQLContext.getDefault(), Locale.ROOT) }
             .isInstanceOf(CoercingSerializeException::class)
     }
+
+    @Test
+    fun `valueToLiteral keeps bytes that are not valid UTF-8`() {
+        val bytes = binary()
+        assertThat(
+            Base64Scalar().parseLiteral(
+                Base64Scalar().valueToLiteral(bytes, GraphQLContext.getDefault(), Locale.ROOT),
+                CoercedVariables.emptyVariables(),
+                GraphQLContext.getDefault(),
+                Locale.ROOT,
+            ).toList(),
+            "Base64 corrupted binary bytes on the way into a schema literal",
+        ).isEqualTo(bytes.toList())
+    }
+
+    @Test
+    fun `valueToLiteral rejects a value that is not a byte array`() {
+        assertFailure { Base64Scalar().valueToLiteral(word(Random.nextInt(1, 30)), GraphQLContext.getDefault(), Locale.ROOT) }
+            .isInstanceOf(CoercingSerializeException::class)
+    }
 }
 
 private fun binary(): ByteArray =

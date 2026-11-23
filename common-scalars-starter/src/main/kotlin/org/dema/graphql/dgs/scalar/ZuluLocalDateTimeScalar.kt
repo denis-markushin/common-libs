@@ -55,5 +55,5 @@ class ZuluLocalDateTimeScalar : LocalDateTimeScalar {
         input: Any,
         graphQLContext: GraphQLContext,
         locale: Locale,
-    ): Value<*> = StringValue.of((input as LocalDateTime).format(DateUtils.ZULU_FORMATTER))
+    ): Value<*> = StringValue.of(serialize(input, graphQLContext, locale))
 }

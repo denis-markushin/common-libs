@@ -69,10 +69,12 @@ class BaseLocalDateTimeScalar : LocalDateTimeScalar {
 
     /**
      * Converts a [LocalDateTime] value into a [StringValue] literal in ISO-8601 format.
+     *
+     * @throws CoercingSerializeException if [input] is not a [LocalDateTime].
      */
     override fun valueToLiteral(
         input: Any,
         graphQLContext: GraphQLContext,
         locale: Locale,
-    ): Value<*> = StringValue.of((input as LocalDateTime).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME))
+    ): Value<*> = StringValue.of(serialize(input, graphQLContext, locale))
 }

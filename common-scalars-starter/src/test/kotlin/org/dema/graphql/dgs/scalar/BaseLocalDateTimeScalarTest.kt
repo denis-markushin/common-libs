@@ -14,4 +14,10 @@ class BaseLocalDateTimeScalarTest {
         assertFailure { BaseLocalDateTimeScalar().serialize(Random.nextLong(), GraphQLContext.getDefault(), Locale.ROOT) }
             .isInstanceOf(CoercingSerializeException::class)
     }
+
+    @Test
+    fun `valueToLiteral rejects a value that is not a LocalDateTime`() {
+        assertFailure { BaseLocalDateTimeScalar().valueToLiteral(Random.nextDouble(), GraphQLContext.getDefault(), Locale.ROOT) }
+            .isInstanceOf(CoercingSerializeException::class)
+    }
 }
