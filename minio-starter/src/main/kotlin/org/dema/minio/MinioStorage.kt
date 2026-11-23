@@ -63,14 +63,17 @@ class MinioStorage(
      *
      * Non-recursive listing stops at the first delimiter, so it reports what looks
      * like one directory level rather than every key beneath it.
+     *
+     * The sequence is lazy: MinIO pages are fetched as it is consumed, so a large
+     * bucket is never held in memory at once. Each pass over it lists again.
      */
-    fun list(prefix: String = "", recursive: Boolean = true): List<Item> = client.listObjects(
+    fun list(prefix: String = "", recursive: Boolean = true): Sequence<Item> = client.listObjects(
         ListObjectsArgs.builder()
             .bucket(properties.bucket)
             .prefix(prefix)
             .recursive(recursive)
             .build(),
-    ).map { it.get() }
+    ).asSequence().map { it.get() }
 
     /**
      * Builds a URL that lets its holder download [key] without credentials until it expires.
