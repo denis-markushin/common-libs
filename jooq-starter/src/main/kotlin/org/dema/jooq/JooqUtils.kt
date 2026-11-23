@@ -156,7 +156,7 @@ object JooqUtils {
         val res = paginate(ctx, original, sort, limit, offset)
 
         val pageable = OffsetBasedPageRequest(offset, limit)
-        if (res.isEmpty()) return Page.empty(pageable)
+        if (res.isEmpty()) return empty(ctx, original, pageable)
 
         val anyRec = res.first()
         val totalRows = getTotalRows(anyRec)
@@ -191,7 +191,7 @@ object JooqUtils {
         val res = paginate(ctx, original, sort, limit, offset)
 
         val pageable = OffsetBasedPageRequest(offset, limit)
-        if (res.isEmpty()) return Page.empty(pageable)
+        if (res.isEmpty()) return empty(ctx, original, pageable)
 
         val anyRec = res.first()
         val totalRows = getTotalRows(anyRec)
@@ -226,7 +226,7 @@ object JooqUtils {
         val res = paginate(ctx, original, sort, limit, offset)
 
         val pageable = OffsetBasedPageRequest(offset, limit)
-        if (res.isEmpty()) return Page.empty(pageable)
+        if (res.isEmpty()) return empty(ctx, original, pageable)
 
         val anyRec = res.first()
         val totalRows = getTotalRows(anyRec)
@@ -262,7 +262,7 @@ object JooqUtils {
         }
 
         val res = paginate(ctx, original, sort, pageable.pageSize.toLong(), pageable.offset)
-        if (res.isEmpty()) return Page.empty(pageable)
+        if (res.isEmpty()) return empty(ctx, original, pageable)
 
         val anyRec = res.first()
         val totalRows = getTotalRows(anyRec)
@@ -324,7 +324,7 @@ object JooqUtils {
         }
 
         val res = paginate(ctx, original, arrayOf<Field<*>>(), pageable.pageSize.toLong(), pageable.offset)
-        if (res.isEmpty()) return Page.empty(pageable)
+        if (res.isEmpty()) return empty(ctx, original, pageable)
 
         val anyRec = res.first()
         val totalRows = getTotalRows(anyRec)
@@ -433,7 +433,7 @@ object JooqUtils {
         val offset = pageable.offset
         val res = paginate(ctx, original, pageable.sort, limit, offset)
 
-        if (res.isEmpty()) return Page.empty(pageable)
+        if (res.isEmpty()) return empty(ctx, original, pageable)
 
         val anyRec = res.first()
         val totalRows = getTotalRows(anyRec)
@@ -488,6 +488,16 @@ object JooqUtils {
             .orderBy(getSortFields(sort, t))
             .fetch()
     }
+
+    /**
+     * Builds an empty page whose total still counts the rows of the query, since a page past the end
+     * carries no row to read the window total from.
+     */
+    private fun <T : Any> empty(
+        ctx: DSLContext,
+        original: Select<*>,
+        pageable: Pageable,
+    ): Page<T> = PageImpl(emptyList<T>(), pageable, if (pageable.offset > 0) ctx.fetchCount(original).toLong() else 0L)
 
     /**
      * Retrieves the total number of rows from the provided record.
