@@ -57,7 +57,9 @@ fun logbookStrategy(): Strategy = object : Strategy {
 ```
 `requestTo` comes from `org.zalando.logbook.core.Conditions`.
 
-Set `logbook.enabled=false` to turn exchange logging off entirely.
+Set `logbook.enabled=false` to turn exchange logging off entirely: service-core
+then switches off the Logbook servlet filters (`logbook.filter.enabled` and
+`logbook.secure-filter.enabled`), so no request pays for exchange capture.
 
 ## Actuator
 
