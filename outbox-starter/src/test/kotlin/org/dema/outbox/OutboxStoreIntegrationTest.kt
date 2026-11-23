@@ -3,8 +3,8 @@ package org.dema.outbox
 import assertk.assertThat
 import assertk.assertions.containsExactly
 import assertk.assertions.containsExactlyInAnyOrder
-import assertk.assertions.hasSize
 import assertk.assertions.isBetween
+import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
@@ -44,7 +44,7 @@ class OutboxStoreIntegrationTest {
         val id = UUID.randomUUID()
         store.insert(id, "Project", UUID.randomUUID(), "ProjectCreated", "{}")
         store.markPublished(id)
-        assertThat(store.fetchUnpublished(10, 5)).hasSize(0)
+        assertThat(store.fetchUnpublished(10, 5), "published event came back to the relay").isEmpty()
     }
 
     @Test
@@ -52,7 +52,7 @@ class OutboxStoreIntegrationTest {
         val id = UUID.randomUUID()
         store.insert(id, "Project", UUID.randomUUID(), "ProjectCreated", "{}")
         repeat(5) { store.markFailed(id, "boom") }
-        assertThat(store.fetchUnpublished(10, maxAttempts = 5)).hasSize(0)
+        assertThat(store.fetchUnpublished(10, maxAttempts = 5), "dead event kept blocking the relay").isEmpty()
     }
 
     @Test
@@ -62,7 +62,7 @@ class OutboxStoreIntegrationTest {
         store.markPublished(id)
         store.markFailed(id, "late failure after successful send")
         val attempts = jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)
-        assertThat(attempts).isEqualTo(0)
+        assertThat(attempts, "late failure counted against an event the broker already took").isEqualTo(0)
     }
 
     @Test
@@ -103,6 +103,7 @@ class OutboxStoreIntegrationTest {
                 TransactionTemplate(DataSourceTransactionManager(a)).execute {
                     OutboxStore(JdbcTemplate(a)).fetchUnpublished(limit = 2, maxAttempts = 5).map { it.id } +
                         TransactionTemplate(DataSourceTransactionManager(b)).execute {
+                            JdbcTemplate(b).execute("set local lock_timeout = '5s'")
                             OutboxStore(JdbcTemplate(b)).fetchUnpublished(limit = 2, maxAttempts = 5).map { it.id }
                         }
                 }
@@ -125,7 +126,7 @@ class OutboxStoreIntegrationTest {
                 "values (?, ?, 'Q', 'Earlier', '{}'::jsonb, now())",
             second, UUID.randomUUID(),
         )
-        assertThat(store.fetchUnpublished(10, 5).map { it.id }).containsExactly(first, second)
+        assertThat(store.fetchUnpublished(10, 5).map { it.id }, "relay order follows the clock, not insertion").containsExactly(first, second)
     }
 
     @Test

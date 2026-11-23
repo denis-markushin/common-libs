@@ -6,6 +6,7 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
+import assertk.assertions.isTrue
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
@@ -77,8 +78,7 @@ class OutboxPublisherIntegrationTest {
         store.insert(id, "Project", UUID.randomUUID(), "ProjectCreated", "{}")
         every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
         publisher.publish()
-        val publishedAt = jdbc.queryForObject("select published_at from outbox_events where id = ?", Timestamp::class.java, id)
-        assertThat(publishedAt != null).isEqualTo(true)
+        assertThat(publication(id), "broker took the event but the outbox still owes it").isNotNull()
     }
 
     @Test
@@ -107,8 +107,7 @@ class OutboxPublisherIntegrationTest {
         failed.completeExceptionally(RuntimeException("broker unreachable: node -3"))
         every { kafka.send(any(), any(), any()) } returns failed
         publisher.publish()
-        val lastError = jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
-        assertThat(lastError).isEqualTo("broker unreachable: node -3")
+        assertThat(failure(id), "stuck event hides the broker error behind its wrapper").isEqualTo("broker unreachable: node -3")
     }
 
     @Test
@@ -116,8 +115,7 @@ class OutboxPublisherIntegrationTest {
         store.insert(UUID.randomUUID(), "Project", UUID.randomUUID(), "IntEvt", "{}")
         every { kafka.send(any(), any(), any()) } returns hang(InterruptedException())
         publisher.publish()
-        val interrupted = Thread.interrupted()
-        assertThat(interrupted).isEqualTo(true)
+        assertThat(Thread.interrupted(), "relay swallowed the shutdown interrupt").isTrue()
     }
 
     @Test
@@ -350,16 +348,18 @@ class OutboxPublisherIntegrationTest {
             sendTimeoutMs = 10_000,
             maxBackoffMs = 41_000,
         )
-        var second: Result<Unit>? = null
+        var second: Result<Timestamp?>? = null
         producer(broker.bootstrapServers, ProducerConfig.MAX_BLOCK_MS_CONFIG to 10_000) { template ->
             every { kafka.send(any(), any(), any()) } answers {
-                second = runCatching { peer(template, props).publish() }
+                second = runCatching {
+                    peer(template, props).publish()
+                    publication(tail)
+                }
                 CompletableFuture.completedFuture(mockk(relaxed = true))
             }
             relay(kafka, props).publish()
         }
-        checkNotNull(second) { "Second relay never polled while the first held its batch" }.getOrThrow()
-        assertThat(publication(tail), "second relay overtook the batch the first one holds").isNull()
+        assertThat(second, "second relay overtook the batch the first one holds, or never polled").isEqualTo(Result.success(null))
     }
 
     @Test

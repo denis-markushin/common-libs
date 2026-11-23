@@ -107,8 +107,7 @@ class OutboxAutoConfigurationIntegrationTest {
     @Test
     fun `context loads and publisher runs its own relay lifecycle`() {
         runner().run { context ->
-            val publisher = context.getBean<OutboxPublisher>()
-            assertThat(publisher.isRunning).isTrue()
+            assertThat(context.getBean<OutboxPublisher>().isRunning, "relay never started with the context").isTrue()
         }
     }
 
@@ -118,7 +117,7 @@ class OutboxAutoConfigurationIntegrationTest {
             .withUserConfiguration(TestBeans::class.java)
             .withConfiguration(AutoConfigurations.of(OutboxAutoConfiguration::class.java))
             .run { context ->
-                assertThat(context.startupFailure).isNotNull()
+                assertThat(context.startupFailure, "starter booted without a topic to publish to").isNotNull()
             }
     }
 
@@ -145,7 +144,7 @@ class OutboxAutoConfigurationIntegrationTest {
     @Test
     fun `service and publisher share a single OutboxStore bean`() {
         runner().run { context ->
-            assertThat(context.getBeansOfType<OutboxStore>().size).isEqualTo(1)
+            assertThat(context.getBeansOfType<OutboxStore>().size, "service and relay write through different stores").isEqualTo(1)
         }
     }
 
