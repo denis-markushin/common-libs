@@ -27,8 +27,8 @@ class BaseLocalDateTimeScalar : LocalDateTimeScalar {
         dataFetcherResult: Any,
         graphQLContext: GraphQLContext,
         locale: Locale,
-    ): String = (dataFetcherResult as LocalDateTime)
-        .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+    ): String = (dataFetcherResult as? LocalDateTime)
+        ?.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
         ?: throw CoercingSerializeException("Expected LocalDateTime, but got: ${dataFetcherResult::class}")
 
     /**
