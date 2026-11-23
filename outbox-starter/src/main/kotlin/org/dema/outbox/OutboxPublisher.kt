@@ -35,6 +35,8 @@ private val log = KotlinLogging.logger {}
  * Each poll first takes a database lock held until its batch commits, so only
  * one relay publishes at a time across replicas and no batch overtakes
  * another; a relay that finds the lock taken skips the poll unpaused.
+ * A tick polls again while the previous poll delivered a whole batch, so a
+ * backlog drains in one tick instead of one batch per poll interval.
  */
 class OutboxPublisher internal constructor(
     private val store: OutboxStore,
@@ -73,11 +75,14 @@ class OutboxPublisher internal constructor(
     internal fun tick() {
         if (!backoff.ready()) return
         try {
-            when (poll()) {
-                true -> backoff.clear()
-                false -> backoff.fail()
-                null -> log.debug { "Outbox relay skipped a poll of ${props.topic} while another relay holds the lock" }
-            }
+            do {
+                val poll = poll()
+                when (poll) {
+                    Poll.BUSY -> log.debug { "Outbox relay skipped a poll of ${props.topic} while another relay holds the lock" }
+                    Poll.STALLED -> backoff.fail()
+                    Poll.DONE, Poll.FULL -> backoff.clear()
+                }
+            } while (poll == Poll.FULL && !Thread.currentThread().isInterrupted)
         } catch (e: Throwable) {
             log.error(e) { "Outbox relay poll failed" }
             backoff.fail()
@@ -88,14 +93,18 @@ class OutboxPublisher internal constructor(
         poll()
     }
 
-    private fun poll(): Boolean? = tx.execute { if (store.lock()) drain() else null }
+    private fun poll(): Poll = tx.execute { if (store.lock()) drain() else Poll.BUSY }
 
-    private fun drain(): Boolean {
+    private fun drain(): Poll {
         val batch = store.fetchUnpublished(props.batchSize, props.maxAttempts)
-        if (batch.isEmpty()) return true
+        if (batch.isEmpty()) return Poll.DONE
         val count = batch.takeWhile(::send).size
         log.debug { "Published $count/${batch.size} outbox event(s) to ${props.topic}" }
-        return count > 0
+        return when (count) {
+            0 -> Poll.STALLED
+            props.batchSize -> Poll.FULL
+            else -> Poll.DONE
+        }
     }
 
     private fun send(row: OutboxRow): Boolean =
@@ -126,4 +135,11 @@ class OutboxPublisher internal constructor(
     private val Throwable.rejection: Boolean
         get() = this is RecordTooLargeException || this is RecordBatchTooLargeException ||
             this is SerializationException || this is InvalidRecordException
+
+    /**
+     * Outcome of one poll: [BUSY] while another relay holds the lock, [STALLED]
+     * when it found events but delivered none, [FULL] when it delivered a whole
+     * batch and more may wait, [DONE] otherwise.
+     */
+    private enum class Poll { BUSY, STALLED, DONE, FULL }
 }

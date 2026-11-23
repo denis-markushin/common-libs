@@ -416,6 +416,47 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
+    fun `tick publishes every full batch it finds`() {
+        val batch = Random.nextInt(2, 10)
+        repeat(batch * Random.nextInt(2, 6) + Random.nextInt(0, batch)) {
+            store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
+        }
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 2_900,
+            batchSize = batch,
+            maxAttempts = 3,
+            sendTimeoutMs = 1_300,
+            maxBackoffMs = 33_000,
+        )
+        OutboxPublisher(store, kafka, props, tx, TestTimeSource()).tick()
+        assertThat(pending(), "relay left full batches waiting for later ticks").isEqualTo(0)
+    }
+
+    @Test
+    fun `tick stops between batches once interrupted`() {
+        val batch = Random.nextInt(2, 10)
+        repeat(batch * 2) {
+            store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
+        }
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 4_700,
+            batchSize = batch,
+            maxAttempts = 2,
+            sendTimeoutMs = 1_100,
+            maxBackoffMs = 27_000,
+        )
+        val relay = OutboxPublisher(store, kafka, props, tx, TestTimeSource())
+        Thread.currentThread().interrupt()
+        relay.tick()
+        Thread.interrupted()
+        assertThat(pending(), "interrupted relay kept draining batches").isEqualTo(batch)
+    }
+
+    @Test
     fun `unreachable broker does not count an attempt`() {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"total":731}""")
@@ -521,6 +562,9 @@ class OutboxPublisherIntegrationTest {
 
     private fun attempts(id: UUID): Int? =
         jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)
+
+    private fun pending(): Int? =
+        jdbc.queryForObject("select count(*) from outbox_events where published_at is null", Int::class.java)
 
     private fun failure(id: UUID): String? =
         jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
