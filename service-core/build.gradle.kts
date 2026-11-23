@@ -19,4 +19,5 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation(libs.assertk)
+    testImplementation("org.springframework.security:spring-security-web")
 }
