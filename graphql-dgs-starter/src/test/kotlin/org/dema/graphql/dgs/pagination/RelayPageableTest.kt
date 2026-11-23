@@ -51,7 +51,7 @@ class RelayPageableTest {
             )
         OrderByClausesMapping.register { key(MomentSortKey.MOMENT_DESC).fields(field.desc()) }
         val pageable = RelayPageable(MomentSortKey.MOMENT_DESC, arrayOf<Any>(moment).encodeToBase64(), 1 + Random.nextInt(50))
-        assertThat(field.dataType.convert(pageable.seekValues.single()), "курсор потерял момент поля timestamptz")
+        assertThat(field.dataType.convert(pageable.seekValues.single()), "cursor lost the moment of a timestamptz field")
             .isEqualTo(moment)
     }
 
