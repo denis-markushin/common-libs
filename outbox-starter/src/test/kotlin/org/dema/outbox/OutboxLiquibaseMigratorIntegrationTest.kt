@@ -52,7 +52,21 @@ class OutboxLiquibaseMigratorIntegrationTest {
         jdbc.update("update pg_index set indisvalid = false where indexrelid = 'idx_outbox_published'::regclass")
         jdbc.update("delete from databasechangelog where id = 'outbox-events-published-index'")
         OutboxLiquibaseMigrator(ds).afterPropertiesSet()
-        assertThat(published(jdbc), "purge kept an index that a killed build left unusable").isEqualTo(1)
+        assertThat(published(jdbc), "purge kept an index that a failed build left unusable").isEqualTo(1)
+    }
+
+    @Test
+    fun `migrator keeps a published index built before the upgrade`() {
+        val ds = database()
+        val jdbc = JdbcTemplate(ds)
+        OutboxLiquibaseMigrator(ds).afterPropertiesSet()
+        jdbc.update("delete from databasechangelog where id = 'outbox-events-published-index'")
+        val index = jdbc.queryForObject("select 'idx_outbox_published'::regclass::oid::bigint", Long::class.java)
+        OutboxLiquibaseMigrator(ds).afterPropertiesSet()
+        assertThat(
+            jdbc.queryForObject("select 'idx_outbox_published'::regclass::oid::bigint", Long::class.java),
+            "upgrade rebuilt an index the operator had already built",
+        ).isEqualTo(index)
     }
 
     private fun database(): DriverManagerDataSource {

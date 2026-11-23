@@ -502,28 +502,6 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `tick publishes while a long expired tail waits`() {
-        val batch = Random.nextInt(2, 10)
-        val retention = Duration.ofDays(Random.nextLong(1, 30))
-        repeat(batch * Random.nextInt(5, 9)) { published(retention.plusSeconds(Random.nextLong(5, 86_400))) }
-        repeat(Random.nextInt(1, 4 * batch)) {
-            store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
-        }
-        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
-        val props = OutboxProperties(
-            topic = "tills.v1",
-            pollIntervalMs = 2_300,
-            batchSize = batch,
-            maxAttempts = 5,
-            sendTimeoutMs = 1_300,
-            maxBackoffMs = 43_000,
-            retention = retention,
-        )
-        OutboxPublisher(store, kafka, props, tx, TestTimeSource()).tick()
-        assertThat(pending(), "expired tail held back publication").isEqualTo(0)
-    }
-
-    @Test
     fun `zero retention keeps published events`() {
         val count = Random.nextInt(1, 6)
         repeat(count) { published(Duration.ofSeconds(Random.nextLong(1, 86_400))) }

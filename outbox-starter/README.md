@@ -234,10 +234,26 @@ a service that builds its `MeterRegistry` without it binds the
   the upgrade.
 - **Expired tail:** events that piled up before the upgrade drain over later
   ticks. Each tick deletes up to one `batch-size` more than its polls could
-  publish, two batches on an idle tick, so a large table shrinks over hours
-  without stalling the relay.
+  publish, two batches on an idle tick, so the row count goes down over
+  hours without stalling the relay. Disk space comes back only as vacuum
+  reclaims the deleted rows.
 - **Index:** the changeset builds `idx_outbox_published` with
   `create index concurrently`, so inserts into `outbox_events` go on while
-  it builds. It waits for transactions already running in the database, so
-  a long-running one delays startup. A build cut short leaves an invalid
-  index; the next startup drops it and builds it again.
+  it builds, and skips the build when a valid index of that name exists.
+  The build waits for transactions already running in the database. On a
+  large table, build the index before the upgrade, so startup does not
+  wait for it:
+  ```sql
+  create index concurrently idx_outbox_published
+      on outbox_events (published_at) where published_at is not null;
+  ```
+  A build that fails with an error leaves an invalid index, which the next
+  startup drops and builds again.
+- **Killed startup:** a pod killed during the migration (probe, OOM,
+  rolling deploy) leaves the Liquibase lock taken, and every later startup
+  waits for it and fails. Check that no instance is still migrating, then
+  release the lock; the next startup replaces the invalid index the killed
+  build left:
+  ```sql
+  update databasechangeloglock set locked = false, lockgranted = null, lockedby = null where id = 1;
+  ```
