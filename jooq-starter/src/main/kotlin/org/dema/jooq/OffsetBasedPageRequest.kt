@@ -44,25 +44,19 @@ class OffsetBasedPageRequest(
 
     override fun getSort(): Sort = sort
 
-    override fun next(): Pageable = OffsetBasedPageRequest((offset + pageSize).toInt().toLong(), pageSize.toLong(), sort)
+    override fun next(): Pageable = OffsetBasedPageRequest(offset + limit, limit, sort)
 
     private fun previous(): OffsetBasedPageRequest = if (hasPrevious()) {
-        OffsetBasedPageRequest(
-            (offset - pageSize).toInt().toLong(),
-            pageSize.toLong(),
-            sort,
-        )
+        OffsetBasedPageRequest(offset - limit, limit, sort)
     } else {
         this
     }
 
     override fun previousOrFirst(): Pageable = if (hasPrevious()) previous() else first()
 
-    override fun first(): Pageable = OffsetBasedPageRequest(0, pageSize.toLong(), sort)
+    override fun first(): Pageable = OffsetBasedPageRequest(0, limit, sort)
 
-    override fun withPage(pageNumber: Int): Pageable {
-        TODO("Not yet implemented")
-    }
+    override fun withPage(pageNumber: Int): Pageable = OffsetBasedPageRequest(pageNumber * limit, limit, sort)
 
     override fun hasPrevious(): Boolean = offset > 0
 }
