@@ -21,7 +21,9 @@ import kotlin.random.Random
  */
 class AbstractRepositoryTimestampsIT {
 
-    private class TaskRepo(moment: Instant) : AbstractRepository<TaskTable, TaskRecord>(TASK) {
+    private class TaskRepo(
+        moment: Instant,
+    ) : AbstractRepository<TaskTable, TaskRecord>(TASK) {
 
         init {
             dsl = TaskBase.dsl

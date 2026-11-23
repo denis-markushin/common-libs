@@ -20,7 +20,9 @@ import java.util.concurrent.TimeUnit
  */
 class AbstractRepositoryLockIT {
 
-    private class LockRepo(context: DSLContext) : AbstractRepository<TaskTable, TaskRecord>(TASK) {
+    private class LockRepo(
+        context: DSLContext,
+    ) : AbstractRepository<TaskTable, TaskRecord>(TASK) {
 
         init {
             dsl = context

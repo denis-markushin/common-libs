@@ -228,8 +228,12 @@ internal fun buildUpsert(
         .onConflict(pk)
         .doUpdate()
     return when {
-        updatable.isNotEmpty() -> step.set(updatable.associateWith { excluded(it) })
-        kept.isNotEmpty() -> step.set(mapOf(kept[0] to kept[0]))
+        updatable.isNotEmpty() -> {
+            step.set(updatable.associateWith { excluded(it) })
+        }
+        kept.isNotEmpty() -> {
+            step.set(mapOf(kept[0] to kept[0]))
+        }
         else -> {
             error("upsert requires at least one updatable column or a preserved column on table ${table.name}")
         }
