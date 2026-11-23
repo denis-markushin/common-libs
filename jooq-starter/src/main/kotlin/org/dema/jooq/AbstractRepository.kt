@@ -4,9 +4,7 @@ import org.dema.jooq.audit.AuditSupport
 import org.dema.jooq.timestamps.TimestampsSupport
 import org.jooq.Condition
 import org.jooq.DSLContext
-import org.jooq.Field
 import org.jooq.InsertOnDuplicateSetMoreStep
-import org.jooq.InsertOnDuplicateSetStep
 import org.jooq.OrderField
 import org.jooq.Record
 import org.jooq.Result
@@ -230,20 +228,10 @@ internal fun buildUpsert(
         .onConflict(pk)
         .doUpdate()
     return when {
-        updatable.isNotEmpty() -> {
-            updatable.drop(1).fold(step.setExcluded(updatable[0])) { acc, column -> acc.setExcluded(column) }
-        }
-        kept.isNotEmpty() -> {
-            step.setSelf(kept[0])
-        }
+        updatable.isNotEmpty() -> step.set(updatable.associateWith { excluded(it) })
+        kept.isNotEmpty() -> step.set(mapOf(kept[0] to kept[0]))
         else -> {
             error("upsert requires at least one updatable column or a preserved column on table ${table.name}")
         }
     }
 }
-
-private fun <A> InsertOnDuplicateSetStep<Record>.setExcluded(field: Field<A>): InsertOnDuplicateSetMoreStep<Record> =
-    set(field, excluded(field))
-
-private fun <A> InsertOnDuplicateSetStep<Record>.setSelf(field: Field<A>): InsertOnDuplicateSetMoreStep<Record> =
-    set(field, field)

@@ -11,4 +11,5 @@ import org.jooq.impl.DSL
  * are escaped, so a percent sign, an underscore and a backslash match only themselves.
  */
 fun search(query: String?, vararg fields: Field<String>): Condition =
-    query?.trim()?.ifEmpty { null }?.let { term -> DSL.or(fields.map { it.containsIgnoreCase(term) }) } ?: DSL.noCondition()
+    if (query.isNullOrBlank()) DSL.noCondition()
+    else DSL.or(fields.map { it.containsIgnoreCase(query.trim()) })
