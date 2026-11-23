@@ -1,8 +1,8 @@
 package org.dema.graphql.dgs.scalar
 
-import assertk.assertFailure
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFailure
 import assertk.assertions.isInstanceOf
 import graphql.GraphQLContext
 import graphql.execution.CoercedVariables
@@ -44,26 +44,33 @@ class Base64ScalarTest {
 
     @Test
     fun `parseValue rejects characters outside the Base64 alphabet`() {
-        assertFailure { Base64Scalar().parseValue("${word(Random.nextInt(4, 40))}!*", GraphQLContext.getDefault(), Locale.ROOT) }
-            .isInstanceOf(CoercingParseValueException::class)
+        assertThat(
+            runCatching { Base64Scalar().parseValue("${word(Random.nextInt(4, 40))}!*", GraphQLContext.getDefault(), Locale.ROOT) },
+            "Base64 took a variable outside its alphabet",
+        ).isFailure().isInstanceOf(CoercingParseValueException::class)
     }
 
     @Test
     fun `parseLiteral rejects characters outside the Base64 alphabet`() {
-        assertFailure {
-            Base64Scalar().parseLiteral(
-                StringValue.of("*${word(Random.nextInt(4, 40))}!"),
-                CoercedVariables.emptyVariables(),
-                GraphQLContext.getDefault(),
-                Locale.ROOT,
-            )
-        }.isInstanceOf(CoercingParseLiteralException::class)
+        assertThat(
+            runCatching {
+                Base64Scalar().parseLiteral(
+                    StringValue.of("*${word(Random.nextInt(4, 40))}!"),
+                    CoercedVariables.emptyVariables(),
+                    GraphQLContext.getDefault(),
+                    Locale.ROOT,
+                )
+            },
+            "Base64 took a literal outside its alphabet",
+        ).isFailure().isInstanceOf(CoercingParseLiteralException::class)
     }
 
     @Test
     fun `serialize rejects a value that is not a byte array`() {
-        assertFailure { Base64Scalar().serialize(word(Random.nextInt(1, 30)), GraphQLContext.getDefault(), Locale.ROOT) }
-            .isInstanceOf(CoercingSerializeException::class)
+        assertThat(
+            runCatching { Base64Scalar().serialize(word(Random.nextInt(1, 30)), GraphQLContext.getDefault(), Locale.ROOT) },
+            "Base64 encoded text as if it were bytes",
+        ).isFailure().isInstanceOf(CoercingSerializeException::class)
     }
 
     @Test
@@ -82,8 +89,10 @@ class Base64ScalarTest {
 
     @Test
     fun `valueToLiteral rejects a value that is not a byte array`() {
-        assertFailure { Base64Scalar().valueToLiteral(word(Random.nextInt(1, 30)), GraphQLContext.getDefault(), Locale.ROOT) }
-            .isInstanceOf(CoercingSerializeException::class)
+        assertThat(
+            runCatching { Base64Scalar().valueToLiteral(word(Random.nextInt(1, 30)), GraphQLContext.getDefault(), Locale.ROOT) },
+            "Base64 let text into a schema literal as if it were bytes",
+        ).isFailure().isInstanceOf(CoercingSerializeException::class)
     }
 }
 
