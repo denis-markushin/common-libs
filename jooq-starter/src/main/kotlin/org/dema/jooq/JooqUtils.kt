@@ -172,7 +172,8 @@ object JooqUtils {
     ): Page<T> {
         if (pageable.isUnpaged) return PageImpl(into(all(ctx, original, sort)))
         val rows = window(ctx, original, sort, pageable.pageSize.toLong(), pageable.offset)
-        val total = rows.firstOrNull()?.let { TOTAL_ROWS[it]?.toLong() } ?: if (pageable.offset > 0) ctx.fetchCount(original).toLong() else 0L
+        val total = rows.firstOrNull()?.let { TOTAL_ROWS[it]?.toLong() }
+            ?: if (pageable.offset > 0) ctx.fetchCount(original).toLong() else 0L
         return PageImpl(into(rows), pageable, total)
     }
 
@@ -194,7 +195,14 @@ object JooqUtils {
     ): Result<Record> {
         val orig = original.asTable("orig")
         val row = rowNumber().over().orderBy(ordered(orig, sort)).`as`("row_num")
-        val t = ctx.select(orig.asterisk()).select(TOTAL_ROWS, row).from(orig).orderBy(ordered(orig, sort)).limit(limit).offset(offset).asTable("t")
+        val t = ctx
+            .select(orig.asterisk())
+            .select(TOTAL_ROWS, row)
+            .from(orig)
+            .orderBy(ordered(orig, sort))
+            .limit(limit)
+            .offset(offset)
+            .asTable("t")
         return ctx
             .select(*t.fields(*original.select.toTypedArray<Field<*>>()))
             .select(
@@ -209,10 +217,16 @@ object JooqUtils {
     }
 
     private fun ordered(table: Table<*>, sort: List<SortField<*>>): List<SortField<*>> =
-        sort.map { (table.field(it.name) ?: throw IllegalArgumentException("Unknown sort property: ${it.name}")).sort(it.order) }
+        sort.map {
+            val field = table.field(it.name) ?: throw IllegalArgumentException("Unknown sort property: ${it.name}")
+            field.sort(it.order)
+        }
 
     private fun defaults(sort: Array<Field<*>>): List<SortField<*>> = sort.map { it.sortDefault() }
 
     private fun spring(sort: Sort?): List<SortField<*>> =
-        sort?.map { field(name(it.property)).sort(if (it.isAscending) SortOrder.ASC else SortOrder.DESC) }?.toList().orEmpty()
+        sort
+            ?.map { field(name(it.property)).sort(if (it.isAscending) SortOrder.ASC else SortOrder.DESC) }
+            ?.toList()
+            .orEmpty()
 }
