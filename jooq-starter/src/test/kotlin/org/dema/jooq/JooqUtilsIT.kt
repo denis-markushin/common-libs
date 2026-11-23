@@ -111,4 +111,15 @@ class JooqUtilsIT {
         val page = JooqUtils.paginate(TaskBase.dsl, query(prefix), arrayOf<SortField<*>>(TASK.PAYLOAD.desc()), limit, 0)
         assertThat(page.map { it.get("last_page", Boolean::class.java) }, "first page of a descending sort claimed to be the last").isEqualTo(List(limit.toInt()) { false })
     }
+
+    @Test
+    fun `last page of a query reports that it is the last`() {
+        val prefix = "${word()}-"
+        val count = Random.nextInt(4, 10)
+        rows(prefix, count)
+        val limit = Random.nextLong(1, count.toLong())
+        val tail = Random.nextLong(1, limit + 1)
+        val page = JooqUtils.paginate(TaskBase.dsl, query(prefix), arrayOf<Field<*>>(TASK.PAYLOAD), limit, count - tail)
+        assertThat(page.map { it.get("last_page", Boolean::class.java) }, "last page of the query did not know it was the last").isEqualTo(List(tail.toInt()) { true })
+    }
 }
