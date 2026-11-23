@@ -122,13 +122,13 @@ object JooqUtils {
     ): Page<T> = page(ctx, original, defaults(sort), pageable) { it.into(targetTable) }
 
     /**
-     * Page of [original] in the order the database returns it; an unpaged [pageable] returns every row.
+     * Page of [original] in the order of the Spring Data sort of [pageable]; an unpaged [pageable] returns every row.
      */
     fun paginate(
         ctx: DSLContext,
         original: Select<*>,
         pageable: Pageable,
-    ): Page<Record> = page(ctx, original, emptyList(), pageable) { it }
+    ): Page<Record> = page(ctx, original, spring(pageable.sort), pageable) { it }
 
     /**
      * Page of [original] in the order of [sort], mapped into [targetTable]; an unpaged [pageable] returns every row.

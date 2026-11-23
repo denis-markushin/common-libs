@@ -82,4 +82,23 @@ class JooqUtilsIT {
         assertFailure { JooqUtils.paginate(TaskBase.dsl, query(prefix), OffsetBasedPageRequest(0, 5, Sort.by(word())), TASK) }
             .isInstanceOf(IllegalArgumentException::class)
     }
+
+    @Test
+    fun `first page reports the total of the query`() {
+        val prefix = "${word()}-"
+        val count = Random.nextInt(3, 10)
+        rows(prefix, count)
+        val page = JooqUtils.paginate(TaskBase.dsl, query(prefix), OffsetBasedPageRequest(0, Random.nextLong(1, count.toLong())), TASK)
+        assertThat(page.totalElements, "first page lost the total of the query").isEqualTo(count.toLong())
+    }
+
+    @Test
+    fun `pageable sort orders a page of records`() {
+        val prefix = "${word()}-"
+        val all = rows(prefix, Random.nextInt(5, 12))
+        val offset = Random.nextInt(0, all.size - 1)
+        val size = Random.nextInt(1, all.size - offset + 1)
+        val page = JooqUtils.paginate(TaskBase.dsl, query(prefix), OffsetBasedPageRequest(offset.toLong(), size.toLong(), Sort.by(Sort.Direction.DESC, "payload")))
+        assertThat(page.content.map { it.get(TASK.PAYLOAD) }, "pageable sort was ignored").isEqualTo(all.sortedDescending().drop(offset).take(size))
+    }
 }
