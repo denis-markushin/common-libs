@@ -9,11 +9,6 @@ import assertk.assertions.isNull
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
-import liquibase.Contexts
-import liquibase.Liquibase
-import liquibase.database.DatabaseFactory
-import liquibase.database.jvm.JdbcConnection
-import liquibase.resource.ClassLoaderResourceAccessor
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.ProducerConfig
@@ -31,7 +26,6 @@ import org.apache.kafka.common.errors.UnknownTopicOrPartitionException
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.awaitility.Awaitility.await
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
@@ -77,48 +71,18 @@ class OutboxPublisherIntegrationTest {
         val broker = KafkaContainer("apache/kafka-native:3.8.0")
     }
 
-    private lateinit var jdbc: JdbcTemplate
-    private lateinit var store: OutboxStore
-    private lateinit var kafka: KafkaTemplate<String, String>
-    private lateinit var publisher: OutboxPublisher
-    private lateinit var tx: TransactionTemplate
-
-    @BeforeEach
-    fun setup() {
-        val ds = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
-        jdbc = JdbcTemplate(ds)
-
-        // Apply the real shipped changelog (idempotent: Liquibase skips applied changesets).
-        ds.connection.use { conn ->
-            val database = DatabaseFactory.getInstance()
-                .findCorrectDatabaseImplementation(JdbcConnection(conn))
-            Liquibase("liquibase/outbox/outbox-changelog.sql", ClassLoaderResourceAccessor(), database)
-                .use { lb -> lb.update(Contexts("outbox")) }
-        }
-
-        // Container is reused across tests; clear rows for isolation.
-        jdbc.execute("truncate outbox_events")
-
-        tx = TransactionTemplate(DataSourceTransactionManager(ds))
-        store = OutboxStore(jdbc)
-        kafka = mockk()
-        publisher = OutboxPublisher(store, kafka, props("test.topic", attempts = 5, timeout = 250), tx, TimeSource.Monotonic)
-    }
-
     @Test
-    fun `successful send marks row published`() {
+    fun `successful send marks row published`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Project", UUID.randomUUID(), "ProjectCreated", "{}")
         every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
-
         publisher.publish()
-
         val publishedAt = jdbc.queryForObject("select published_at from outbox_events where id = ?", Timestamp::class.java, id)
         assertThat(publishedAt != null).isEqualTo(true)
     }
 
     @Test
-    fun `send exceeding timeout records the timeout`() {
+    fun `send exceeding timeout records the timeout`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Project", UUID.randomUUID(), "SlowEvt", """{"slow":true}""")
         every { kafka.send(any(), any(), any()) } returns hang(TimeoutException())
@@ -127,7 +91,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `send timeout does not count an attempt`() {
+    fun `send timeout does not count an attempt`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Ledger", UUID.randomUUID(), "Posted", """{"amount":-31}""")
         every { kafka.send(any(), any(), any()) } returns hang(TimeoutException())
@@ -136,7 +100,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `async failure records root cause not the wrapper`() {
+    fun `async failure records root cause not the wrapper`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Project", UUID.randomUUID(), "AsyncFail", """{"x":"y"}""")
         val failed = CompletableFuture<SendResult<String, String>>()
@@ -148,7 +112,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `interrupted send restores the interrupt flag`() {
+    fun `interrupted send restores the interrupt flag`() = rig {
         store.insert(UUID.randomUUID(), "Project", UUID.randomUUID(), "IntEvt", "{}")
         every { kafka.send(any(), any(), any()) } returns hang(InterruptedException())
         publisher.publish()
@@ -157,7 +121,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `interrupted send does not count an attempt`() {
+    fun `interrupted send does not count an attempt`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Shift", UUID.randomUUID(), "Closed", """{"till":4}""")
         every { kafka.send(any(), any(), any()) } returns hang(InterruptedException())
@@ -167,7 +131,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `producer interrupted while blocked does not count an attempt`() {
+    fun `producer interrupted while blocked does not count an attempt`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Shift", UUID.randomUUID(), "Opened", """{"till":-9}""")
         every { kafka.send(any(), any(), any()) } answers { throw InterruptException(InterruptedException()) }
@@ -177,7 +141,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `producer interrupted while blocked records no error`() {
+    fun `producer interrupted while blocked records no error`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Shift", UUID.randomUUID(), "Opened", """{"till":17}""")
         every { kafka.send(any(), any(), any()) } answers { throw InterruptException(InterruptedException()) }
@@ -187,7 +151,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `events sent before a failure stay published`() {
+    fun `events sent before a failure stay published`() = rig {
         val head = UUID.randomUUID()
         store.insert(head, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":8}""")
         store.insert(UUID.randomUUID(), "Order", UUID.randomUUID(), "OrderClosed", """{"seat":-8,"bad":true}""")
@@ -205,7 +169,7 @@ class OutboxPublisherIntegrationTest {
             ClusterAuthorizationException::class,
         ],
     )
-    fun `failure outside the event does not count an attempt`(fault: Class<out Exception>) {
+    fun `failure outside the event does not count an attempt`(fault: Class<out Exception>) = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"guests":${Random.nextInt(1, 40)}}""")
         val cause = fault.getConstructor(String::class.java).newInstance("kafka-${Random.nextInt()} refused")
@@ -223,7 +187,7 @@ class OutboxPublisherIntegrationTest {
             InvalidRecordException::class,
         ],
     )
-    fun `failure of the event itself counts an attempt`(fault: Class<out Exception>) {
+    fun `failure of the event itself counts an attempt`(fault: Class<out Exception>) = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"guests":${Random.nextInt(1, 40)}}""")
         val cause = fault.getConstructor(String::class.java).newInstance("record ${Random.nextInt()} rejected")
@@ -233,7 +197,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `missing topic records the topic not the partition error`() {
+    fun `missing topic records the topic not the partition error`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"total":64}""")
         val metadata = KafkaTimeoutException(
@@ -246,7 +210,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `transient failure keeps events of one aggregate in insertion order`() {
+    fun `transient failure keeps events of one aggregate in insertion order`() = rig {
         val aggregate = UUID.randomUUID()
         val payloads = List(3) { """{"n": ${Random.nextInt()}}""" }
         payloads.forEach { store.insert(UUID.randomUUID(), "Order", aggregate, "OrderClosed", it) }
@@ -265,7 +229,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `relay skips polls while paused after a failure`() {
+    fun `relay skips polls while paused after a failure`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":12}""")
         every { kafka.send(any(), any(), any()) } throws rejection()
@@ -283,7 +247,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `relay polls again once the pause elapses`() {
+    fun `relay polls again once the pause elapses`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":-2}""")
         every { kafka.send(any(), any(), any()) } throws rejection()
@@ -304,7 +268,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `poll that published before a failure lifts the pause`() {
+    fun `poll that published before a failure lifts the pause`() = rig {
         val tail = UUID.randomUUID()
         store.insert(UUID.randomUUID(), "Order", UUID.randomUUID(), "OrderClosed", """{"seat":3}""")
         store.insert(tail, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":-3,"bad":true}""")
@@ -323,7 +287,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `failed database poll pauses the relay`() {
+    fun `failed database poll pauses the relay`() = rig {
         val calls = AtomicInteger()
         val database = object : DriverManagerDataSource() {
             override fun getConnection(): Connection {
@@ -351,7 +315,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `manual publish leaves the relay pause in place`() {
+    fun `manual publish leaves the relay pause in place`() = rig {
         val tail = UUID.randomUUID()
         store.insert(UUID.randomUUID(), "Order", UUID.randomUUID(), "OrderClosed", """{"seat":31}""")
         every { kafka.send(any(), any(), any()) } throws rejection()
@@ -373,7 +337,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `second relay does not publish while the first holds its batch`() {
+    fun `second relay does not publish while the first holds its batch`() = rig {
         val tail = UUID.randomUUID()
         val aggregate = UUID.randomUUID()
         store.insert(UUID.randomUUID(), "Order", aggregate, "OrderClosed", """{"seat":${Random.nextInt()}}""")
@@ -399,7 +363,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `relay skipped by a busy peer polls again on the next tick`() {
+    fun `relay skipped by a busy peer polls again on the next tick`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":${Random.nextInt()}}""")
         val props = OutboxProperties(
@@ -419,7 +383,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `tick publishes every full batch it finds`() {
+    fun `tick publishes every full batch it finds`() = rig {
         val batch = Random.nextInt(2, 10)
         repeat(batch * Random.nextInt(2, 6) + Random.nextInt(0, batch)) {
             store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
@@ -438,7 +402,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `tick stops between batches once interrupted`() {
+    fun `tick stops between batches once interrupted`() = rig {
         val batch = Random.nextInt(2, 10)
         repeat(batch * 2) {
             store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
@@ -460,7 +424,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `tick purges as many expired events as it publishes`() {
+    fun `tick purges as many expired events as it publishes`() = rig {
         val batch = Random.nextInt(2, 10)
         val retention = Duration.ofMinutes(Random.nextLong(5, 600))
         val count = batch * Random.nextInt(2, 6) + Random.nextInt(0, batch)
@@ -483,7 +447,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `tick leaves the rest of a long expired tail to later ticks`() {
+    fun `tick leaves the rest of a long expired tail to later ticks`() = rig {
         val batch = Random.nextInt(2, 10)
         val retention = Duration.ofHours(Random.nextLong(1, 200))
         val tail = batch * Random.nextInt(3, 8) + Random.nextInt(1, batch)
@@ -502,7 +466,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `zero retention keeps published events`() {
+    fun `zero retention keeps published events`() = rig {
         val count = Random.nextInt(1, 6)
         repeat(count) { published(Duration.ofSeconds(Random.nextLong(1, 86_400))) }
         val props = OutboxProperties(
@@ -519,7 +483,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `failed purge leaves the relay unpaused`() {
+    fun `failed purge leaves the relay unpaused`() = rig {
         store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
         every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
         val faulty = spyk(store)
@@ -539,7 +503,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `unreachable broker does not count an attempt`() {
+    fun `unreachable broker does not count an attempt`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"total":731}""")
         val props = props("orders.${UUID.randomUUID()}", attempts = 1, timeout = 2_000)
@@ -548,7 +512,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `unreachable broker records the root cause not the template wrapper`() {
+    fun `unreachable broker records the root cause not the template wrapper`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"total":88}""")
         val props = props("orders.${UUID.randomUUID()}", attempts = 2, timeout = 2_000)
@@ -557,7 +521,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `unreachable broker stops the batch at the first event`() {
+    fun `unreachable broker stops the batch at the first event`() = rig {
         val tail = UUID.randomUUID()
         val aggregate = UUID.randomUUID()
         store.insert(UUID.randomUUID(), "Order", aggregate, "OrderClosed", """{"total":5}""")
@@ -568,7 +532,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `events held back by an outage reach the topic in insertion order`() {
+    fun `events held back by an outage reach the topic in insertion order`() = rig {
         val aggregate = UUID.randomUUID()
         val payloads = List(4) { """{"n": ${Random.nextInt()}}""" }
         payloads.forEach { store.insert(UUID.randomUUID(), "Order", aggregate, "OrderClosed", it) }
@@ -580,7 +544,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `oversized event counts an attempt`() {
+    fun `oversized event counts an attempt`() = rig {
         val id = UUID.randomUUID()
         store.insert(id, "Menu", UUID.randomUUID(), "MenuPublished", blob())
         val props = props("menus.${UUID.randomUUID()}", attempts = 4, timeout = 10_000)
@@ -589,7 +553,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `oversized event stops the batch`() {
+    fun `oversized event stops the batch`() = rig {
         val tail = UUID.randomUUID()
         store.insert(UUID.randomUUID(), "Menu", UUID.randomUUID(), "MenuPublished", blob())
         store.insert(tail, "Menu", UUID.randomUUID(), "MenuPublished", """{"dish":"borscht"}""")
@@ -599,7 +563,7 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
-    fun `dead event stops blocking the relay`() {
+    fun `dead event stops blocking the relay`() = rig {
         val tail = UUID.randomUUID()
         store.insert(UUID.randomUUID(), "Menu", UUID.randomUUID(), "MenuPublished", blob())
         store.insert(tail, "Menu", UUID.randomUUID(), "MenuPublished", """{"dish":"pelmeni"}""")
@@ -620,50 +584,6 @@ class OutboxPublisherIntegrationTest {
             maxBackoffMs = 23_000,
         )
 
-    private fun relay(template: KafkaTemplate<String, String>, props: OutboxProperties): OutboxPublisher =
-        OutboxPublisher(store, template, props, tx, TimeSource.Monotonic)
-
-    private fun peer(template: KafkaTemplate<String, String>, props: OutboxProperties): OutboxPublisher {
-        val source = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
-        return OutboxPublisher(
-            OutboxStore(JdbcTemplate(source)),
-            template,
-            props,
-            TransactionTemplate(DataSourceTransactionManager(source)),
-            TimeSource.Monotonic,
-        )
-    }
-
-    private fun hold(block: () -> Unit) {
-        val source = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
-        TransactionTemplate(DataSourceTransactionManager(source)).executeWithoutResult {
-            check(OutboxStore(JdbcTemplate(source)).lock()) { "Relay lock is already held by another session" }
-            block()
-        }
-    }
-
-    private fun attempts(id: UUID): Int? =
-        jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)
-
-    private fun pending(): Int? =
-        jdbc.queryForObject("select count(*) from outbox_events where published_at is null", Int::class.java)
-
-    private fun rows(): Int? = jdbc.queryForObject("select count(*) from outbox_events", Int::class.java)
-
-    private fun published(age: Duration) {
-        jdbc.update(
-            "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, published_at) " +
-                "values (?, ?, 'Till', 'Closed', '{}'::jsonb, now() - make_interval(secs => ?))",
-            UUID.randomUUID(), UUID.randomUUID(), age.seconds,
-        )
-    }
-
-    private fun failure(id: UUID): String? =
-        jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
-
-    private fun publication(id: UUID): Timestamp? =
-        jdbc.queryForObject("select published_at from outbox_events where id = ?", Timestamp::class.java, id)
-
     private fun hang(fault: Exception): CompletableFuture<SendResult<String, String>> {
         val future = mockk<CompletableFuture<SendResult<String, String>>>()
         every { future.get(any<Long>(), any()) } throws fault
@@ -672,13 +592,6 @@ class OutboxPublisherIntegrationTest {
 
     private fun rejection(): KafkaException =
         KafkaException("Send failed", RecordTooLargeException("The message is ${Random.nextInt(1_100_000, 9_000_000)} bytes"))
-
-    private fun refuse(marker: String) {
-        every { kafka.send(any(), any(), any()) } answers {
-            if (thirdArg<String>().contains(marker)) throw rejection()
-            CompletableFuture.completedFuture(mockk(relaxed = true))
-        }
-    }
 
     private fun <T> producer(
         bootstrap: String,
@@ -721,4 +634,63 @@ class OutboxPublisherIntegrationTest {
 
     private fun blob(): String =
         """{"blob": "${(1..Random.nextInt(2_000, 4_000)).map { ('a'..'z').random() }.joinToString("")}"}"""
+
+    private fun rig(block: Rig.() -> Unit) = Rig().block()
+
+    /** One test's own outbox database, a strict Kafka mock and a relay wired to both. */
+    private inner class Rig : Outbox(pg) {
+        val kafka = mockk<KafkaTemplate<String, String>>()
+        val publisher = OutboxPublisher(store, kafka, props("test.topic", attempts = 5, timeout = 250), tx, TimeSource.Monotonic)
+
+        fun relay(template: KafkaTemplate<String, String>, props: OutboxProperties): OutboxPublisher =
+            OutboxPublisher(store, template, props, tx, TimeSource.Monotonic)
+
+        fun peer(template: KafkaTemplate<String, String>, props: OutboxProperties): OutboxPublisher {
+            val source = session()
+            return OutboxPublisher(
+                OutboxStore(JdbcTemplate(source)),
+                template,
+                props,
+                TransactionTemplate(DataSourceTransactionManager(source)),
+                TimeSource.Monotonic,
+            )
+        }
+
+        fun hold(block: () -> Unit) {
+            val source = session()
+            TransactionTemplate(DataSourceTransactionManager(source)).executeWithoutResult {
+                check(OutboxStore(JdbcTemplate(source)).lock()) { "Relay lock is already held by another session" }
+                block()
+            }
+        }
+
+        fun attempts(id: UUID): Int? =
+            jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)
+
+        fun pending(): Int? =
+            jdbc.queryForObject("select count(*) from outbox_events where published_at is null", Int::class.java)
+
+        fun rows(): Int? = jdbc.queryForObject("select count(*) from outbox_events", Int::class.java)
+
+        fun published(age: Duration) {
+            jdbc.update(
+                "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, published_at) " +
+                    "values (?, ?, 'Till', 'Closed', '{}'::jsonb, now() - make_interval(secs => ?))",
+                UUID.randomUUID(), UUID.randomUUID(), age.seconds,
+            )
+        }
+
+        fun failure(id: UUID): String? =
+            jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
+
+        fun publication(id: UUID): Timestamp? =
+            jdbc.queryForObject("select published_at from outbox_events where id = ?", Timestamp::class.java, id)
+
+        fun refuse(marker: String) {
+            every { kafka.send(any(), any(), any()) } answers {
+                if (thirdArg<String>().contains(marker)) throw rejection()
+                CompletableFuture.completedFuture(mockk(relaxed = true))
+            }
+        }
+    }
 }

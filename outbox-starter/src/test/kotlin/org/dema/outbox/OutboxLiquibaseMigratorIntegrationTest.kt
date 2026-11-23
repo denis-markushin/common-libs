@@ -8,7 +8,6 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
-import java.util.UUID
 
 @Testcontainers
 class OutboxLiquibaseMigratorIntegrationTest {
@@ -20,33 +19,35 @@ class OutboxLiquibaseMigratorIntegrationTest {
     }
 
     @Test
-    fun `migrator creates outbox_events table and index`() {
-        val ds = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
+    fun `migrator creates the outbox table`() {
+        val ds = DriverManagerDataSource(pg.database(), pg.username, pg.password)
         OutboxLiquibaseMigrator(ds).afterPropertiesSet()
+        assertThat(
+            JdbcTemplate(ds).queryForObject("select count(*) from information_schema.tables where table_name = 'outbox_events'", Int::class.java),
+            "migrator left the service without an outbox table",
+        ).isEqualTo(1)
+    }
 
-        val jdbc = JdbcTemplate(ds)
-        val table = jdbc.queryForObject(
-            "select count(*) from information_schema.tables where table_name = 'outbox_events'",
-            Int::class.java,
-        )
-        val index = jdbc.queryForObject(
-            "select count(*) from pg_indexes where indexname = 'idx_outbox_unpublished'",
-            Int::class.java,
-        )
-        assertThat(table).isEqualTo(1)
-        assertThat(index).isEqualTo(1)
+    @Test
+    fun `migrator indexes unpublished events for the relay`() {
+        val ds = DriverManagerDataSource(pg.database(), pg.username, pg.password)
+        OutboxLiquibaseMigrator(ds).afterPropertiesSet()
+        assertThat(
+            JdbcTemplate(ds).queryForObject("select count(*) from pg_indexes where indexname = 'idx_outbox_unpublished'", Int::class.java),
+            "relay scans the whole outbox table for its next batch",
+        ).isEqualTo(1)
     }
 
     @Test
     fun `migrator indexes published events for the purge`() {
-        val ds = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
+        val ds = DriverManagerDataSource(pg.database(), pg.username, pg.password)
         OutboxLiquibaseMigrator(ds).afterPropertiesSet()
         assertThat(published(JdbcTemplate(ds)), "purge scans the whole outbox table").isEqualTo(1)
     }
 
     @Test
     fun `migrator rebuilds a published index that a failed build left invalid`() {
-        val ds = database()
+        val ds = DriverManagerDataSource(pg.database(), pg.username, pg.password)
         val jdbc = JdbcTemplate(ds)
         OutboxLiquibaseMigrator(ds).afterPropertiesSet()
         jdbc.update("update pg_index set indisvalid = false where indexrelid = 'idx_outbox_published'::regclass")
@@ -57,7 +58,7 @@ class OutboxLiquibaseMigratorIntegrationTest {
 
     @Test
     fun `migrator keeps a published index built before the upgrade`() {
-        val ds = database()
+        val ds = DriverManagerDataSource(pg.database(), pg.username, pg.password)
         val jdbc = JdbcTemplate(ds)
         OutboxLiquibaseMigrator(ds).afterPropertiesSet()
         jdbc.update("delete from databasechangelog where id = 'outbox-events-published-index'")
@@ -67,12 +68,6 @@ class OutboxLiquibaseMigratorIntegrationTest {
             jdbc.queryForObject("select 'idx_outbox_published'::regclass::oid::bigint", Long::class.java),
             "upgrade rebuilt an index the operator had already built",
         ).isEqualTo(index)
-    }
-
-    private fun database(): DriverManagerDataSource {
-        val name = "outbox_${UUID.randomUUID().toString().replace("-", "")}"
-        JdbcTemplate(DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)).execute("create database $name")
-        return DriverManagerDataSource("jdbc:postgresql://${pg.host}:${pg.getMappedPort(5432)}/$name", pg.username, pg.password)
     }
 
     private fun published(jdbc: JdbcTemplate): Int? =
