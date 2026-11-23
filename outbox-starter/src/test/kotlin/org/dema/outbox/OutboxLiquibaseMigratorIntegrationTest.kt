@@ -35,4 +35,18 @@ class OutboxLiquibaseMigratorIntegrationTest {
         assertThat(table).isEqualTo(1)
         assertThat(index).isEqualTo(1)
     }
+
+    @Test
+    fun `migrator indexes published events for the purge`() {
+        val ds = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
+        OutboxLiquibaseMigrator(ds).afterPropertiesSet()
+        val index = JdbcTemplate(ds).queryForObject(
+            """
+            select count(*) from pg_indexes
+            where indexname = 'idx_outbox_published' and indexdef like '%(published_at)%WHERE (published_at IS NOT NULL)'
+            """.trimIndent(),
+            Int::class.java,
+        )
+        assertThat(index, "purge scans the whole outbox table").isEqualTo(1)
+    }
 }

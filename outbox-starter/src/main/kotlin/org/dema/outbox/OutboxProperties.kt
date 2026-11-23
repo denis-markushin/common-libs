@@ -1,6 +1,7 @@
 package org.dema.outbox
 
 import org.springframework.boot.context.properties.ConfigurationProperties
+import java.time.Duration
 
 @ConfigurationProperties("dema.outbox")
 data class OutboxProperties(
@@ -24,6 +25,11 @@ data class OutboxProperties(
      * it doubles from [pollIntervalMs] up to it, 0 turns it off.
      */
     var maxBackoffMs: Long = 60000,
+    /**
+     * How long a published event stays in outbox_events before the relay deletes it;
+     * 0 keeps published events forever. Unpublished events are never deleted.
+     */
+    var retention: Duration = Duration.ofDays(7),
     /** Bundled changelog that provisions the outbox_events table. */
     var liquibase: Liquibase = Liquibase(),
 ) {

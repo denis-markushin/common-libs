@@ -5,6 +5,7 @@
 - [Schema](#schema)
 - [Operations](#operations)
 - [Metrics](#metrics)
+- [Upgrading to 6.0.0](#upgrading-to-600)
 
 Transactional outbox for reliable event publication to Kafka. A producer writes
 domain events to a database table inside the business transaction; a background
@@ -56,10 +57,11 @@ dual-write inconsistency.
 | `dema.outbox.enabled`           | `true`     | Master switch for the whole starter                                                        |
 | `dema.outbox.topic`             | (required) | Kafka topic to publish to                                                                  |
 | `dema.outbox.poll-interval-ms`  | `1000`     | Relay poll interval; also the wait after a first poll that found events but delivered none |
-| `dema.outbox.batch-size`        | `100`      | Rows per poll                                                                              |
+| `dema.outbox.batch-size`        | `100`      | Rows per poll and per purge statement                                                      |
 | `dema.outbox.max-attempts`      | `5`        | Event is dead after this many failures of the event itself                                 |
 | `dema.outbox.send-timeout-ms`   | `10000`    | Max wait per Kafka send acknowledgement                                                    |
 | `dema.outbox.max-backoff-ms`    | `60000`    | Cap of that wait, which doubles per such poll in a row; `0` turns it off                   |
+| `dema.outbox.retention`         | `7d`       | Age after publication at which the relay deletes an event; `0` keeps them forever          |
 | `dema.outbox.liquibase.enabled` | `true`     | Auto-create the `outbox_events` table                                                      |
 
 Metrics need no property: with `spring-boot-starter-actuator` the starter
@@ -73,7 +75,9 @@ changelog (Liquibase context `outbox`) programmatically — it does NOT register
 normally. To manage the schema yourself, set `dema.outbox.liquibase.enabled=false`
 and create the table with the columns: `id, aggregate_id, aggregate_type,
 event_type, payload (jsonb), attempts, last_error, created_at (timestamptz),
-published_at (timestamptz), seq (bigint identity)`.
+published_at (timestamptz), seq (bigint identity)`, plus the partial indexes
+`(seq) where published_at is null` for the relay and
+`(published_at) where published_at is not null` for the purge.
 
 ## Operations
 
@@ -82,6 +86,18 @@ published_at (timestamptz), seq (bigint identity)`.
   application and needs no scheduling setup on the consumer side. The relay
   runs its own JDBC transactions on the outbox `DataSource`, whatever
   transaction manager your application uses.
+- **Throughput:** a poll sends at most `batch-size` events in one
+  transaction, and the relay polls again at once while a poll delivers a
+  whole batch. It waits `poll-interval-ms` only after a poll that found fewer
+  events, failed, or met another relay holding the lock, so a backlog drains
+  in one go rather than at `batch-size` events per interval.
+- **Retention:** after its polls, the relay deletes events published more
+  than `retention` ago, by the database clock, `batch-size` rows per
+  statement until a statement finds fewer, so it keeps pace with
+  publication. An unpublished event is never deleted, however old or dead.
+  A failed purge logs a warning and leaves the relay unpaused; the next
+  poll retries it. Replicas purge side by side and skip each other's rows.
+  `retention: 0` keeps every published event.
 - **Ordering:** rows are published in `seq` (insertion) order and keyed by
   `aggregate_id`, so per-aggregate order is preserved within a partition. A
   failed send ends the poll and the next poll starts from that row, so later
@@ -207,4 +223,22 @@ a service that builds its `MeterRegistry` without it binds the
   - alert: OutboxDeadEvents
     expr: max by (job) (outbox_events_dead) > 0
     for: 2m
+  ```
+
+## Upgrading to 6.0.0
+
+- **Published events are deleted:** 6.0.0 deletes events published more than
+  7 days ago. To keep the history, set `dema.outbox.retention: 0` before
+  the upgrade.
+- **First purge:** the first tick after the upgrade deletes everything
+  older than `retention` before the relay polls again, so on a large table
+  publication pauses until it catches up. To avoid that, delete old rows in
+  chunks before the upgrade.
+- **Index:** the changeset adds `idx_outbox_published` with a plain
+  `create index`, which blocks inserts into `outbox_events` while it builds.
+  On a large table, create it beforehand without blocking; the changeset
+  then skips it:
+  ```sql
+  create index concurrently if not exists idx_outbox_published
+      on outbox_events (published_at) where published_at is not null;
   ```

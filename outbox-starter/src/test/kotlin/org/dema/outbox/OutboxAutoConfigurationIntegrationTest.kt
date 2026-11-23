@@ -125,6 +125,15 @@ class OutboxAutoConfigurationIntegrationTest {
     }
 
     @Test
+    fun `context fails when retention is negative`() {
+        runner
+            .withPropertyValues("dema.outbox.retention=-${Random.nextInt(1, 90)}d")
+            .run { context ->
+                assertThat(context.startupFailure, "negative retention would purge every published event").isNotNull()
+            }
+    }
+
+    @Test
     fun `liquibase migrator auto-creates outbox_events`() {
         runner.run { context ->
             assertThat(context.startupFailure == null).isTrue()

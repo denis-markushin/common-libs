@@ -27,6 +27,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer
 import java.sql.DriverManager
 import java.util.UUID
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
 
 @Testcontainers
 class OutboxStoreIntegrationTest {
@@ -281,6 +282,49 @@ class OutboxStoreIntegrationTest {
         store.markPublished(event(Random.nextLong(60, 86_400)))
         assertThat(store.backlog(Random.nextInt(1, 6)).age, "drained outbox reported a stuck head").isNull()
     }
+
+    @Test
+    fun `purge deletes events published before the retention`() {
+        val retention = Random.nextLong(60, 86_400)
+        published(retention + Random.nextLong(5, 3_600))
+        store.purge(retention.seconds, Random.nextInt(1, 50))
+        assertThat(rows(), "event outlived its retention").isEqualTo(0)
+    }
+
+    @Test
+    fun `purge keeps unpublished events however old`() {
+        event(Random.nextLong(86_400, 9_000_000))
+        store.purge(Random.nextLong(1, 60).seconds, Random.nextInt(1, 50))
+        assertThat(rows(), "purge deleted an event the relay still owes").isEqualTo(1)
+    }
+
+    @Test
+    fun `purge keeps events published within the retention`() {
+        val retention = Random.nextLong(600, 86_400)
+        published(Random.nextLong(0, retention - 60))
+        store.purge(retention.seconds, Random.nextInt(1, 50))
+        assertThat(rows(), "purge deleted an event still within its retention").isEqualTo(1)
+    }
+
+    @Test
+    fun `purge deletes no more than the limit`() {
+        val limit = Random.nextInt(1, 6)
+        val count = limit + Random.nextInt(1, 6)
+        repeat(count) { published(Random.nextLong(7_200, 86_400)) }
+        store.purge(Random.nextLong(60, 3_600).seconds, limit)
+        assertThat(rows(), "one purge statement deleted more than its limit").isEqualTo(count - limit)
+    }
+
+    private fun published(age: Long): UUID =
+        UUID.randomUUID().also { id ->
+            jdbc.update(
+                "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, created_at, published_at) " +
+                    "values (?, ?, 'Till', 'Closed', '{}'::jsonb, now() - make_interval(secs => ?), now() - make_interval(secs => ?))",
+                id, UUID.randomUUID(), age + 1, age,
+            )
+        }
+
+    private fun rows(): Int? = jdbc.queryForObject("select count(*) from outbox_events", Int::class.java)
 
     private fun event(age: Long): UUID =
         UUID.randomUUID().also { id ->

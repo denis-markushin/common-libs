@@ -49,6 +49,7 @@ class OutboxAutoConfiguration {
         props: OutboxProperties,
     ): OutboxPublisher {
         require(props.topic.isNotBlank()) { "dema.outbox.topic must be configured" }
+        require(!props.retention.isNegative) { "dema.outbox.retention must not be negative, got ${props.retention}" }
         val tx = TransactionTemplate(DataSourceTransactionManager(dataSource))
         return OutboxPublisher(store, kafka, props, tx, TimeSource.Monotonic)
     }

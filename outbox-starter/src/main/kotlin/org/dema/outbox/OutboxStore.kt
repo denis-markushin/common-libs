@@ -5,6 +5,7 @@ import org.springframework.jdbc.core.RowMapper
 import java.util.UUID
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.DurationUnit
 
 /** Unpublished events split into the ones the relay still owes and the dead ones, plus how long the oldest owed one waits. */
 internal data class Backlog(
@@ -92,6 +93,26 @@ internal class OutboxStore(
             error, id,
         )
     }
+
+    /**
+     * Deletes up to [limit] events published more than [retention] ago by the database
+     * clock and returns how many it deleted. An unpublished row never matches, and rows
+     * another relay is deleting are skipped rather than waited for.
+     */
+    fun purge(retention: Duration, limit: Int): Int =
+        jdbc.update(
+            """
+            delete from outbox_events
+            where id in (
+                select id
+                from outbox_events
+                where published_at < now() - make_interval(secs => ?)
+                limit ?
+                for update skip locked
+            )
+            """.trimIndent(),
+            retention.toDouble(DurationUnit.SECONDS), limit,
+        )
 
     /** One pass over the unpublished rows; the age of the relay head comes from the database clock. */
     fun backlog(maxAttempts: Int): Backlog =

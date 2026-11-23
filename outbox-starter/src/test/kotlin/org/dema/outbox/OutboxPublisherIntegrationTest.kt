@@ -3,10 +3,12 @@ package org.dema.outbox
 import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import liquibase.Contexts
 import liquibase.Liquibase
 import liquibase.database.DatabaseFactory
@@ -33,6 +35,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.ValueSource
+import org.springframework.dao.DataAccessResourceFailureException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
 import org.springframework.jdbc.datasource.DriverManagerDataSource
@@ -457,6 +460,63 @@ class OutboxPublisherIntegrationTest {
     }
 
     @Test
+    fun `tick purges every event published before the retention`() {
+        val batch = Random.nextInt(2, 10)
+        val retention = Duration.ofMinutes(Random.nextLong(5, 600))
+        repeat(batch * Random.nextInt(2, 6) + Random.nextInt(0, batch)) {
+            published(retention.plusSeconds(Random.nextLong(5, 86_400)))
+        }
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 3_300,
+            batchSize = batch,
+            maxAttempts = 4,
+            sendTimeoutMs = 1_700,
+            maxBackoffMs = 29_000,
+            retention = retention,
+        )
+        OutboxPublisher(store, kafka, props, tx, TestTimeSource()).tick()
+        assertThat(rows(), "relay let expired events pile up").isEqualTo(0)
+    }
+
+    @Test
+    fun `zero retention keeps published events`() {
+        val count = Random.nextInt(1, 6)
+        repeat(count) { published(Duration.ofSeconds(Random.nextLong(1, 86_400))) }
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 2_100,
+            batchSize = 19,
+            maxAttempts = 5,
+            sendTimeoutMs = 1_200,
+            maxBackoffMs = 31_000,
+            retention = Duration.ZERO,
+        )
+        OutboxPublisher(store, kafka, props, tx, TestTimeSource()).tick()
+        assertThat(rows(), "disabled retention wiped the event history").isEqualTo(count)
+    }
+
+    @Test
+    fun `failed purge leaves the relay unpaused`() {
+        store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        val faulty = spyk(store)
+        every { faulty.purge(any(), any()) } throws DataAccessResourceFailureException("Connection to db-${Random.nextInt(1, 99)}:5432 reset")
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 5_900,
+            batchSize = 15,
+            maxAttempts = 3,
+            sendTimeoutMs = 1_500,
+            maxBackoffMs = 47_000,
+            retention = Duration.ofHours(Random.nextLong(1, 400)),
+        )
+        val relay = OutboxPublisher(faulty, kafka, props, tx, TestTimeSource())
+        relay.tick()
+        assertThat(relay.paused, "failed purge paused the relay").isFalse()
+    }
+
+    @Test
     fun `unreachable broker does not count an attempt`() {
         val id = UUID.randomUUID()
         store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"total":731}""")
@@ -565,6 +625,16 @@ class OutboxPublisherIntegrationTest {
 
     private fun pending(): Int? =
         jdbc.queryForObject("select count(*) from outbox_events where published_at is null", Int::class.java)
+
+    private fun rows(): Int? = jdbc.queryForObject("select count(*) from outbox_events", Int::class.java)
+
+    private fun published(age: Duration) {
+        jdbc.update(
+            "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, published_at) " +
+                "values (?, ?, 'Till', 'Closed', '{}'::jsonb, now() - make_interval(secs => ?))",
+            UUID.randomUUID(), UUID.randomUUID(), age.seconds,
+        )
+    }
 
     private fun failure(id: UUID): String? =
         jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
