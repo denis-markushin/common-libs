@@ -1,9 +1,9 @@
 package org.dema.jooq
 
-import assertk.assertFailure
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
+import assertk.assertions.isNotNull
 import org.dema.jooq.audit.TaskBase
 import org.dema.jooq.audit.TaskRecord
 import org.dema.jooq.audit.TaskTable.Companion.TASK
@@ -79,8 +79,8 @@ class JooqUtilsIT {
     fun `unknown sort property is rejected`() {
         val prefix = "${word()}-"
         rows(prefix, Random.nextInt(1, 4))
-        assertFailure { JooqUtils.paginate(TaskBase.dsl, query(prefix), OffsetBasedPageRequest(0, 5, Sort.by(word())), TASK) }
-            .isInstanceOf(IllegalArgumentException::class)
+        val failure = runCatching { JooqUtils.paginate(TaskBase.dsl, query(prefix), OffsetBasedPageRequest(0, 5, Sort.by(word())), TASK) }.exceptionOrNull()
+        assertThat(failure, "unknown sort property slipped through").isNotNull().isInstanceOf(IllegalArgumentException::class)
     }
 
     @Test
