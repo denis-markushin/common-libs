@@ -3,7 +3,8 @@ package org.dema.jooq
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotEqualTo
-import org.dema.jooq.timestamps.TimestampsApplier
+import org.dema.jooq.timestamps.TimestampsProperties
+import org.dema.jooq.timestamps.TimestampsSupport
 import org.jooq.Table
 import org.jooq.impl.DSL
 import org.junit.jupiter.api.AfterAll
@@ -48,7 +49,7 @@ class AbstractRepositoryUpsertIT {
         val record = dsl.newRecord(table)
         record.set(record.field("id") as org.jooq.Field<Any>, id)
         record.set(record.field("payload") as org.jooq.Field<Any>, payload)
-        TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
+        TimestampsSupport(clock, TimestampsProperties(createdAtColumn = "created_dt", updatedAtColumn = "last_edited_dt")).apply(record)
         buildUpsert(dsl, table, record, setOf("created_dt", "created_by")).execute()
     }
 
