@@ -10,10 +10,11 @@ import java.time.temporal.Temporal
 import kotlin.math.abs
 
 /**
- * Asserts that the difference between two [Temporal] values is within
- * the given tolerance in milliseconds.
+ * Asserts that the difference between two [Temporal] values of one kind is within
+ * the given tolerance in milliseconds. The [Comparable] bound keeps mixed kinds,
+ * such as [LocalDateTime] against [Instant], from compiling.
  */
-fun <T : Temporal> Assert<T>.isCloseToMillis(expected: T, within: Long) = given { actual ->
+fun <T> Assert<T>.isCloseToMillis(expected: T, within: Long) where T : Temporal, T : Comparable<T> = given { actual ->
     val diff = abs(ChronoUnit.MILLIS.between(expected, actual))
     if (diff > within) {
         fail("expected to be within <$within ms> of <$expected>, but was <$actual> (diff=$diff ms)")

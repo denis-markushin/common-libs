@@ -1,6 +1,7 @@
 package org.dema.test
 
 import assertk.assertThat
+import assertk.assertions.contains
 import assertk.assertions.isTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -47,5 +48,11 @@ class AssertkExtTest {
         val expected = Instant.ofEpochMilli(Random.nextLong(0, 4_000_000_000_000))
         val actual = expected.plusMillis(within + Random.nextLong(1, 1_000))
         assertThat(runCatching { assertThat(actual).isCloseToMillis(expected, within) }.isFailure, "an instant beyond tolerance passed as close").isTrue()
+    }
+
+    @Test
+    fun `isCloseToMillis binds its type to itself so mixed temporals do not compile`() {
+        val method = Class.forName("org.dema.test.AssertkExtKt").methods.single { it.name == "isCloseToMillis" }
+        assertThat(method.typeParameters.single().bounds.map { it.typeName }, "isCloseToMillis lets mixed temporals compile").contains("java.lang.Comparable<? super T>")
     }
 }
