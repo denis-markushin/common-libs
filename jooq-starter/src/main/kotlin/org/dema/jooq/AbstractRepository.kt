@@ -124,7 +124,7 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
     /**
      * Fetches a single record matching the provided condition.
      *
-     * @param forUpdate Whether to lock the record for update.
+     * @param forUpdate Whether to lock the record for update, waiting for a lock held by another transaction.
      * @param where Condition to match.
      * @return The matching record, or null if none found.
      */
@@ -133,13 +133,13 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         where: (T) -> Condition,
     ): R? = baseQuery()
         .and(where.invoke(table))
-        .apply { if (forUpdate) forUpdate().skipLocked() }
+        .apply { if (forUpdate) forUpdate() }
         .fetchOne()
 
     /**
      * Fetches all records matching the provided condition.
      *
-     * @param forUpdate Whether to lock the records for update.
+     * @param forUpdate Whether to lock the records for update, waiting for a lock held by another transaction.
      * @param where Condition to match.
      * @return A Result containing all matching records.
      */
@@ -148,7 +148,7 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         where: (T) -> Condition,
     ): Result<R> = baseQuery()
         .and(where.invoke(table))
-        .apply { if (forUpdate) forUpdate().skipLocked() }
+        .apply { if (forUpdate) forUpdate() }
         .fetch()
 
     /**

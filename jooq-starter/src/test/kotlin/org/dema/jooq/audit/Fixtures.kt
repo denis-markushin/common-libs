@@ -46,12 +46,15 @@ class TaskTable : TableImpl<TaskRecord>(DSL.name("task")) {
  */
 object TaskBase {
 
+    private val postgres by lazy { PostgreSQLContainer("postgres:15-alpine").apply { start() } }
+
     val dsl: DSLContext by lazy {
-        val postgres = PostgreSQLContainer("postgres:15-alpine").apply { start() }
-        DSL.using(postgres.jdbcUrl, postgres.username, postgres.password).also {
+        connect().also {
             it.execute("create table task (id uuid primary key, payload text, created_by text, updated_by text)")
         }
     }
+
+    fun connect(): DSLContext = DSL.using(postgres.jdbcUrl, postgres.username, postgres.password)
 }
 
 fun user(login: String): Authentication = JwtAuthenticationToken(token(login), emptyList())
