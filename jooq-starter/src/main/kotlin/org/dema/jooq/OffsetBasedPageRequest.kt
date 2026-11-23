@@ -47,7 +47,7 @@ class OffsetBasedPageRequest(
     override fun next(): Pageable = OffsetBasedPageRequest(offset + limit, limit, sort)
 
     private fun previous(): OffsetBasedPageRequest = if (hasPrevious()) {
-        OffsetBasedPageRequest(offset - limit, limit, sort)
+        OffsetBasedPageRequest(maxOf(0, offset - limit), limit, sort)
     } else {
         this
     }

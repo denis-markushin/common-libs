@@ -40,4 +40,10 @@ class OffsetBasedPageRequestTest {
         val page = Random.nextInt(0, 100)
         assertThat(OffsetBasedPageRequest(Random.nextLong(0, 1000), limit).withPage(page).offset, "withPage missed the start of the page").isEqualTo(page * limit)
     }
+
+    @Test
+    fun `previousOrFirst from inside the first page goes to the first page`() {
+        val limit = Random.nextLong(2, 50)
+        assertThat(OffsetBasedPageRequest(Random.nextLong(1, limit), limit).previousOrFirst().offset, "previousOrFirst stepped before the first row").isEqualTo(0L)
+    }
 }
