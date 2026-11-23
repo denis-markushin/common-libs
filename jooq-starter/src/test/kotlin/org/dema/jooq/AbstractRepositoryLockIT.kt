@@ -11,7 +11,6 @@ import org.jooq.impl.DSL
 import org.junit.jupiter.api.Test
 import java.util.UUID
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 
 /**
@@ -29,14 +28,14 @@ class AbstractRepositoryLockIT {
         }
     }
 
-    private fun waiting(): Boolean =
+    private fun waiting(pid: Int): Boolean =
         TaskBase.dsl.fetchExists(
-            DSL.selectOne().from(DSL.table("pg_stat_activity")).where(DSL.field("wait_event_type").eq("Lock")),
+            DSL.selectOne().from(DSL.table("pg_stat_activity")).where(DSL.field("pid").eq(pid), DSL.field("wait_event_type").eq("Lock")),
         )
 
-    private fun blocked() {
+    private fun blocked(pid: Int) {
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
-        while (!waiting() && System.nanoTime() < deadline) {
+        while (!waiting(pid) && System.nanoTime() < deadline) {
             Thread.sleep(50)
         }
     }
@@ -45,14 +44,19 @@ class AbstractRepositoryLockIT {
     fun `getOneBy for update waits for a lock held by another transaction`() {
         val id = UUID.randomUUID()
         TaskBase.dsl.insertInto(TASK).set(TASK.ID, id).set(TASK.PAYLOAD, "nakladnaya-${UUID.randomUUID()}").execute()
-        val waiter = TaskBase.connect()
-        val pool = Executors.newSingleThreadExecutor()
-        val read: Future<TaskRecord?> = TaskBase.connect().transactionResult { holder ->
-            LockRepo(holder.dsl()).getOneBy(forUpdate = true) { it.ID.eq(id) }
-            pool.submit<TaskRecord?> {
-                waiter.transactionResult { other -> LockRepo(other.dsl()).getOneBy(forUpdate = true) { it.ID.eq(id) } }
-            }.also { blocked() }
+        val read = TaskBase.connect().use { holder ->
+            TaskBase.connect().use { waiter ->
+                Executors.newSingleThreadExecutor().use { pool ->
+                    val pid = waiter.fetchValue("select pg_backend_pid()") as Int
+                    holder.transactionResult { tx ->
+                        LockRepo(tx.dsl()).getOneBy(forUpdate = true) { it.ID.eq(id) }
+                        pool.submit<TaskRecord?> {
+                            waiter.transactionResult { other -> LockRepo(other.dsl()).getOneBy(forUpdate = true) { it.ID.eq(id) } }
+                        }.also { blocked(pid) }
+                    }.get(10, TimeUnit.SECONDS)
+                }
+            }
         }
-        assertThat(read.get(10, TimeUnit.SECONDS), "row locked by another transaction read as absent").isNotNull()
+        assertThat(read, "row locked by another transaction read as absent").isNotNull()
     }
 }

@@ -1,5 +1,6 @@
 package org.dema.jooq.audit
 
+import org.jooq.CloseableDSLContext
 import org.jooq.DSLContext
 import org.jooq.TableField
 import org.jooq.UniqueKey
@@ -57,7 +58,7 @@ object TaskBase {
         }
     }
 
-    fun connect(): DSLContext = DSL.using(postgres.jdbcUrl, postgres.username, postgres.password)
+    fun connect(): CloseableDSLContext = DSL.using(postgres.jdbcUrl, postgres.username, postgres.password)
 }
 
 fun user(login: String): Authentication = JwtAuthenticationToken(token(login), emptyList())
