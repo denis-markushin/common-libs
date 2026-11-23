@@ -6,7 +6,19 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.temporal.ChronoUnit
+import java.time.temporal.Temporal
 import kotlin.math.abs
+
+/**
+ * Asserts that the difference between two [Temporal] values is within
+ * the given tolerance in milliseconds.
+ */
+fun <T : Temporal> Assert<T>.isCloseToMillis(expected: T, within: Long) = given { actual ->
+    val diff = abs(ChronoUnit.MILLIS.between(expected, actual))
+    if (diff > within) {
+        fail("expected to be within <$within ms> of <$expected>, but was <$actual> (diff=$diff ms)")
+    }
+}
 
 // ========== LocalDateTime ==========
 
@@ -22,17 +34,6 @@ fun Assert<LocalDateTime>.isEqualToMillis(expected: LocalDateTime) = given { act
     }
 }
 
-/**
- * Asserts that the difference between two [LocalDateTime] values is within
- * the given tolerance in milliseconds.
- */
-fun Assert<LocalDateTime>.isCloseToMillis(expected: LocalDateTime, within: Long) = given { actual ->
-    val diff = abs(ChronoUnit.MILLIS.between(expected, actual))
-    if (diff > within) {
-        fail("expected to be within <$within ms> of <$expected>, but was <$actual> (diff=$diff ms)")
-    }
-}
-
 // ========== Instant ==========
 
 /** Same as [isEqualToMillis] but for [Instant]. */
@@ -44,14 +45,6 @@ fun Assert<Instant>.isEqualToMillis(expected: Instant) = given { actual ->
     }
 }
 
-/** Same as [isCloseToMillis] but for [Instant]. */
-fun Assert<Instant>.isCloseToMillis(expected: Instant, within: Long) = given { actual ->
-    val diff = abs(ChronoUnit.MILLIS.between(expected, actual))
-    if (diff > within) {
-        fail("expected to be within <$within ms> of <$expected>, but was <$actual> (diff=$diff ms)")
-    }
-}
-
 // ========== OffsetDateTime ==========
 
 /** Same as [isEqualToMillis] but for [OffsetDateTime]. */
@@ -60,13 +53,5 @@ fun Assert<OffsetDateTime>.isEqualToMillis(expected: OffsetDateTime) = given { a
     val e = expected.truncatedTo(ChronoUnit.MILLIS)
     if (!a.equals(e)) {
         fail("expected <$e> (MILLIS precision) but was <$a>")
-    }
-}
-
-/** Same as [isCloseToMillis] but for [OffsetDateTime]. */
-fun Assert<OffsetDateTime>.isCloseToMillis(expected: OffsetDateTime, within: Long) = given { actual ->
-    val diff = abs(ChronoUnit.MILLIS.between(expected, actual))
-    if (diff > within) {
-        fail("expected to be within <$within ms> of <$expected>, but was <$actual> (diff=$diff ms)")
     }
 }
