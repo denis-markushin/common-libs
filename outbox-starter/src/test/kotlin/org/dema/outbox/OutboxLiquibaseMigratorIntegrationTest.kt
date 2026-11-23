@@ -57,6 +57,18 @@ class OutboxLiquibaseMigratorIntegrationTest {
     }
 
     @Test
+    fun `migrator rebuilds a published index of another definition`() {
+        val ds = DriverManagerDataSource(pg.database(), pg.username, pg.password)
+        val jdbc = JdbcTemplate(ds)
+        OutboxLiquibaseMigrator(ds).afterPropertiesSet()
+        jdbc.execute("drop index idx_outbox_published")
+        jdbc.execute("create index idx_outbox_published on outbox_events (${listOf("created_at", "aggregate_id", "event_type").random()})")
+        jdbc.update("delete from databasechangelog where id = 'outbox-events-published-index'")
+        OutboxLiquibaseMigrator(ds).afterPropertiesSet()
+        assertThat(published(jdbc), "purge got an index on the wrong column").isEqualTo(1)
+    }
+
+    @Test
     fun `migrator keeps a published index built before the upgrade`() {
         val ds = DriverManagerDataSource(pg.database(), pg.username, pg.password)
         val jdbc = JdbcTemplate(ds)

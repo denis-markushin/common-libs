@@ -235,25 +235,37 @@ a service that builds its `MeterRegistry` without it binds the
 - **Expired tail:** events that piled up before the upgrade drain over later
   ticks. Each tick deletes up to one `batch-size` more than its polls could
   publish, two batches on an idle tick, so the row count goes down over
-  hours without stalling the relay. Disk space comes back only as vacuum
-  reclaims the deleted rows.
+  hours without stalling the relay. Autovacuum makes the space reusable for
+  new rows; the table and its indexes shrink on disk only with
+  `vacuum full` or `pg_repack`.
 - **Index:** the changeset builds `idx_outbox_published` with
   `create index concurrently`, so inserts into `outbox_events` go on while
-  it builds, and skips the build when a valid index of that name exists.
-  The build waits for transactions already running in the database. On a
-  large table, build the index before the upgrade, so startup does not
-  wait for it:
+  it builds, and skips the build when a valid index of that name and
+  definition exists. The build waits for transactions already running in
+  the database. On a large table, build the index before the upgrade, and
+  start the upgrade only once that build has finished:
   ```sql
   create index concurrently idx_outbox_published
       on outbox_events (published_at) where published_at is not null;
   ```
-  A build that fails with an error leaves an invalid index, which the next
-  startup drops and builds again.
+  A build that fails with an error, or an index of that name with another
+  definition, is dropped and built again on the next startup.
 - **Killed startup:** a pod killed during the migration (probe, OOM,
   rolling deploy) leaves the Liquibase lock taken, and every later startup
-  waits for it and fails. Check that no instance is still migrating, then
-  release the lock; the next startup replaces the invalid index the killed
-  build left:
-  ```sql
-  update databasechangeloglock set locked = false, lockgranted = null, lockedby = null where id = 1;
-  ```
+  waits for it and fails. PostgreSQL does not stop the index build when its
+  client dies: the backend keeps building. Releasing the lock while it runs
+  makes the next startup wait for that build, drop the finished index and
+  build it again. Before releasing the lock:
+  1. Find the leftover build:
+     ```sql
+     select pid from pg_stat_activity where query ilike 'create index concurrently idx_outbox_published%';
+     ```
+  2. Wait for it to finish, so the index turns valid and the next startup
+     skips the build; or stop it with `select pg_cancel_backend(<pid>)`,
+     drop the invalid index it leaves with
+     `drop index concurrently idx_outbox_published`, and build the index
+     by hand as shown above.
+  3. Once no build runs and no instance is migrating, release the lock:
+     ```sql
+     update databasechangeloglock set locked = false, lockgranted = null, lockedby = null where id = 1;
+     ```

@@ -36,7 +36,7 @@ comment on column outbox_events.attempts is 'Publish failures of the event itsel
 
 --changeset denis.markushin:outbox-events-published-index context:outbox runInTransaction:false
 --preconditions onFail:MARK_RAN
---precondition-sql-check expectedResult:0 select count(*) from pg_index where indexrelid = to_regclass('idx_outbox_published') and indisvalid
+--precondition-sql-check expectedResult:0 select count(*) from pg_index where indexrelid = to_regclass('idx_outbox_published') and indisvalid and pg_get_indexdef(indexrelid) like '%(published_at)%WHERE (published_at IS NOT NULL)'
 drop index concurrently if exists idx_outbox_published;
 create index concurrently idx_outbox_published on outbox_events (published_at) where published_at is not null;
 
