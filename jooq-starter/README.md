@@ -13,7 +13,8 @@ Spring Boot starter for jOOQ. Provides:
 - `OffsetBasedPageRequest` — Spring `Pageable` implementation based on offset/limit.
 - `search(query, USERS.NAME, USERS.EMAIL)` — condition of a list search: a case-insensitive substring in any of the fields. The query is trimmed, a blank one narrows nothing, and `%`, `_` and `\` match only themselves.
 - `TimestampsRecordListener` — auto-populates `created_at` / `updated_at` columns on `UpdatableRecord.store()`. Supports `LocalDateTime`, `OffsetDateTime` and `Instant` columns.
-- `AbstractRepository.upsert` — also populates the timestamp columns; on `on conflict do update` the `created` column keeps its stored value while `updated` is refreshed.
+- `AbstractRepository.insertOnConflictDoNothing` and `AbstractRepository.upsert` — also populate the timestamp columns; on `on conflict do update` the `created` column keeps its stored value while `updated` is refreshed.
+- `AbstractRepository.getOneBy(forUpdate = true)` / `getAllBy(forUpdate = true)` — lock the rows with `FOR UPDATE`, waiting for a lock held by another transaction.
 - `AuditRecordListener` — auto-populates `created_by` / `updated_by` text columns with the login of the authenticated user. Requires `spring-security-core` and `spring-security-oauth2-jose` on the classpath.
 
 ## Usage
