@@ -1,9 +1,5 @@
 description = "Spring Boot core module with Jetty, validation, Jackson Kotlin, SpringDoc and logging defaults"
 
-plugins {
-    kotlin("kapt")
-}
-
 dependencies {
     implementation(platform(libs.spring.boot.dependencies))
 
@@ -23,6 +19,5 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation(libs.assertk)
-
-    kapt("org.springframework.boot:spring-boot-configuration-processor")
+    testImplementation("org.springframework.security:spring-security-web")
 }

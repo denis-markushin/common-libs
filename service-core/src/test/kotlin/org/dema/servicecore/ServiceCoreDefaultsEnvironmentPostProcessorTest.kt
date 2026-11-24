@@ -4,6 +4,8 @@ import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
+import assertk.assertions.isInstanceOf
+import assertk.assertions.isNull
 import assertk.assertions.isTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
@@ -12,14 +14,20 @@ import org.springframework.boot.SpringBootConfiguration
 import org.springframework.boot.actuate.autoconfigure.endpoint.expose.IncludeExcludeEndpointFilter
 import org.springframework.boot.actuate.endpoint.EndpointId
 import org.springframework.boot.actuate.endpoint.web.ExposableWebEndpoint
+import org.springframework.boot.autoconfigure.AutoConfigurations
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration
 import org.springframework.boot.builder.SpringApplicationBuilder
+import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration
 import org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration
 import org.springframework.boot.micrometer.metrics.autoconfigure.export.prometheus.PrometheusMetricsExportAutoConfiguration
+import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.boot.web.server.context.WebServerApplicationContext
 import org.springframework.context.annotation.Import
 import org.springframework.core.env.MapPropertySource
 import org.springframework.core.env.StandardEnvironment
+import org.zalando.logbook.Strategy
+import org.zalando.logbook.autoconfigure.LogbookAutoConfiguration
+import org.zalando.logbook.core.WithoutBodyStrategy
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -76,6 +84,27 @@ class ServiceCoreDefaultsEnvironmentPostProcessorTest {
     }
 
     @Test
+    fun `logbook defaults bind without errors`() {
+        logbook().run { ctx ->
+            assertThat(ctx.startupFailure, "logbook defaults broke the context").isNull()
+        }
+    }
+
+    @Test
+    fun `logbook defaults log exchanges without bodies`() {
+        logbook().run { ctx ->
+            assertThat(ctx.getBean(Strategy::class.java), "exchange log writes bodies by default").isInstanceOf(WithoutBodyStrategy::class)
+        }
+    }
+
+    @Test
+    fun `service include path binds next to logbook defaults`() {
+        logbook("logbook.predicate.include[0].path=/${UUID.randomUUID().toString().take(8)}/**").run { ctx ->
+            assertThat(ctx.startupFailure, "service include path broke logbook binding").isNull()
+        }
+    }
+
+    @Test
     fun `service properties win over service-core defaults`() {
         val environment = StandardEnvironment()
         val service = MapPropertySource("service", mapOf("management.endpoints.web.exposure.include" to "health"))
@@ -86,6 +115,12 @@ class ServiceCoreDefaultsEnvironmentPostProcessorTest {
 
     private fun defaults(): StandardEnvironment =
         StandardEnvironment().also { ServiceCoreDefaultsEnvironmentPostProcessor().postProcessEnvironment(it, SpringApplication()) }
+
+    private fun logbook(vararg properties: String): ApplicationContextRunner =
+        ApplicationContextRunner()
+            .withPropertyValues(*properties)
+            .withInitializer { ServiceCoreDefaultsEnvironmentPostProcessor().postProcessEnvironment(it.environment, SpringApplication()) }
+            .withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration::class.java, LogbookAutoConfiguration::class.java))
 
     private fun exposed(endpoint: String, environment: StandardEnvironment = defaults()): Boolean =
         IncludeExcludeEndpointFilter(ExposableWebEndpoint::class.java, environment, "management.endpoints.web.exposure")

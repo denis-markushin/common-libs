@@ -1,0 +1,10 @@
+{
+  "properties": [
+    {
+      "name": "logbook.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether to log HTTP exchanges with Logbook. When false, service-core switches off the Logbook servlet filters.",
+      "defaultValue": true
+    }
+  ]
+}
