@@ -1,32 +1,25 @@
 package org.dema.outbox
 
-import assertk.assertAll
 import assertk.assertThat
 import assertk.assertions.containsExactly
-import assertk.assertions.hasSize
+import assertk.assertions.containsExactlyInAnyOrder
 import assertk.assertions.isBetween
+import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import assertk.assertions.isTrue
-import liquibase.Contexts
-import liquibase.Liquibase
-import liquibase.database.DatabaseFactory
-import liquibase.database.jvm.JdbcConnection
-import liquibase.resource.ClassLoaderResourceAccessor
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DataSourceTransactionManager
-import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.jdbc.datasource.SingleConnectionDataSource
 import org.springframework.transaction.support.TransactionTemplate
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.postgresql.PostgreSQLContainer
-import java.sql.DriverManager
 import java.util.UUID
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
 
 @Testcontainers
 class OutboxStoreIntegrationTest {
@@ -37,73 +30,43 @@ class OutboxStoreIntegrationTest {
         val pg = PostgreSQLContainer("postgres:17.5-alpine")
     }
 
-    private lateinit var ds: DriverManagerDataSource
-    private lateinit var jdbc: JdbcTemplate
-    private lateinit var store: OutboxStore
-
-    @BeforeEach
-    fun setup() {
-        ds = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
-        jdbc = JdbcTemplate(ds)
-
-        ds.connection.use { conn ->
-            val database = DatabaseFactory.getInstance()
-                .findCorrectDatabaseImplementation(JdbcConnection(conn))
-            Liquibase("liquibase/outbox/outbox-changelog.sql", ClassLoaderResourceAccessor(), database)
-                .use { lb -> lb.update(Contexts("outbox")) }
-        }
-
-        jdbc.execute("truncate outbox_events")
-
-        store = OutboxStore(jdbc)
-    }
-
     @Test
-    fun `insert then fetchUnpublished returns the row`() {
+    fun `insert then fetchUnpublished returns the row`() = outbox {
         val id = UUID.randomUUID()
         val aggId = UUID.randomUUID()
         store.insert(id, "Project", aggId, "ProjectCreated", """{"a":1}""")
-
-        val rows = store.fetchUnpublished(limit = 10, maxAttempts = 5)
-
-        assertAll {
-            assertThat(rows).hasSize(1)
-            assertThat(rows[0].id).isEqualTo(id)
-            assertThat(rows[0].aggregateId).isEqualTo(aggId)
-            assertThat(rows[0].payload).isEqualTo("""{"a": 1}""")
-        }
+        assertThat(store.fetchUnpublished(limit = 10, maxAttempts = 5), "stored event came back changed or not at all")
+            .containsExactly(OutboxRow(id, aggId, """{"a": 1}"""))
     }
 
     @Test
-    fun `markPublished removes row from unpublished`() {
+    fun `markPublished removes row from unpublished`() = outbox {
         val id = UUID.randomUUID()
         store.insert(id, "Project", UUID.randomUUID(), "ProjectCreated", "{}")
         store.markPublished(id)
-
-        assertThat(store.fetchUnpublished(10, 5)).hasSize(0)
+        assertThat(store.fetchUnpublished(10, 5), "published event came back to the relay").isEmpty()
     }
 
     @Test
-    fun `markFailed increments attempts and dead row is excluded`() {
+    fun `markFailed increments attempts and dead row is excluded`() = outbox {
         val id = UUID.randomUUID()
         store.insert(id, "Project", UUID.randomUUID(), "ProjectCreated", "{}")
         repeat(5) { store.markFailed(id, "boom") }
-
-        assertThat(store.fetchUnpublished(10, maxAttempts = 5)).hasSize(0)
+        assertThat(store.fetchUnpublished(10, maxAttempts = 5), "dead event kept blocking the relay").isEmpty()
     }
 
     @Test
-    fun `markFailed on published row does not increment attempts`() {
+    fun `markFailed on published row does not increment attempts`() = outbox {
         val id = UUID.randomUUID()
         store.insert(id, "Zx9", UUID.randomUUID(), "WeirdEvt", """{"n":-17}""")
         store.markPublished(id)
         store.markFailed(id, "late failure after successful send")
         val attempts = jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)
-        assertThat(attempts).isEqualTo(0)
+        assertThat(attempts, "late failure counted against an event the broker already took").isEqualTo(0)
     }
 
     @Test
-    fun `markDeferred does not count an attempt`() {
+    fun `markDeferred does not count an attempt`() = outbox {
         val id = UUID.randomUUID()
         store.insert(id, "Kx", UUID.randomUUID(), "Deferred", """{"q":3}""")
         repeat(4) { store.markDeferred(id, "Topic kx.v1 not present in metadata after 517 ms.") }
@@ -112,7 +75,7 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `markDeferred records the last error`() {
+    fun `markDeferred records the last error`() = outbox {
         val id = UUID.randomUUID()
         store.insert(id, "Kx", UUID.randomUUID(), "Deferred", """{"q":-8}""")
         store.markDeferred(id, "Disconnected from node 3")
@@ -121,7 +84,7 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `markDeferred on published row keeps the error empty`() {
+    fun `markDeferred on published row keeps the error empty`() = outbox {
         val id = UUID.randomUUID()
         store.insert(id, "Kx", UUID.randomUUID(), "Deferred", """{"q":0.5}""")
         store.markPublished(id)
@@ -131,44 +94,26 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `concurrent fetchUnpublished returns disjoint rows via skip locked`() {
-        // Insert 4 unpublished rows.
-        val ids = (1..4).map { UUID.randomUUID() }
-        ids.forEach { store.insert(it, "Project", UUID.randomUUID(), "ProjectCreated", "{}") }
-
-        // Two independent single-connection datasources, each with its own tx boundary.
-        val dsA = singleConnectionDataSource()
-        val dsB = singleConnectionDataSource()
-        try {
-            val storeA = OutboxStore(JdbcTemplate(dsA))
-            val storeB = OutboxStore(JdbcTemplate(dsB))
-            val txA = TransactionTemplate(DataSourceTransactionManager(dsA))
-            val txB = TransactionTemplate(DataSourceTransactionManager(dsB))
-
-            // Tx A locks 2 rows and keeps the transaction open while B fetches.
-            val idsA = txA.execute {
-                val lockedByA = storeA.fetchUnpublished(limit = 2, maxAttempts = 5).map { it.id }
-                // Tx B fetches the next 2 rows; skip-locked must hand it the OTHER rows.
-                val idsB = txB.execute {
-                    storeB.fetchUnpublished(limit = 2, maxAttempts = 5).map { it.id }
+    fun `concurrent fetchUnpublished returns disjoint rows via skip locked`() = outbox {
+        val ids = List(4) { UUID.randomUUID() }.onEach { store.insert(it, "Project", UUID.randomUUID(), "ProjectCreated", "{}") }
+        val fetched = connection().use { first ->
+            connection().use { second ->
+                val a = SingleConnectionDataSource(first, true)
+                val b = SingleConnectionDataSource(second, true)
+                TransactionTemplate(DataSourceTransactionManager(a)).execute {
+                    OutboxStore(JdbcTemplate(a)).fetchUnpublished(limit = 2, maxAttempts = 5).map { it.id } +
+                        TransactionTemplate(DataSourceTransactionManager(b)).execute {
+                            JdbcTemplate(b).execute("set local lock_timeout = '5s'")
+                            OutboxStore(JdbcTemplate(b)).fetchUnpublished(limit = 2, maxAttempts = 5).map { it.id }
+                        }
                 }
-
-                assertThat(lockedByA).hasSize(2)
-                assertThat(idsB).hasSize(2)
-                assertThat((lockedByA.toSet() + idsB.toSet())).hasSize(4)
-                assertThat(lockedByA.intersect(idsB.toSet())).hasSize(0)
-                lockedByA
             }
-
-            assertThat(idsA).hasSize(2)
-        } finally {
-            dsA.destroy()
-            dsB.destroy()
         }
+        assertThat(fetched, "two relays fetched the same locked row").containsExactlyInAnyOrder(*ids.toTypedArray())
     }
 
     @Test
-    fun `fetchUnpublished orders by insertion sequence not created_at`() {
+    fun `fetchUnpublished orders by insertion sequence not created_at`() = outbox {
         val first = UUID.randomUUID()
         val second = UUID.randomUUID()
         jdbc.update(
@@ -181,13 +126,13 @@ class OutboxStoreIntegrationTest {
                 "values (?, ?, 'Q', 'Earlier', '{}'::jsonb, now())",
             second, UUID.randomUUID(),
         )
-        assertThat(store.fetchUnpublished(10, 5).map { it.id }).containsExactly(first, second)
+        assertThat(store.fetchUnpublished(10, 5).map { it.id }, "relay order follows the clock, not insertion").containsExactly(first, second)
     }
 
     @Test
-    fun `application lock on an id equal to the table oid leaves the relay lock free`() {
+    fun `application lock on an id equal to the table oid leaves the relay lock free`() = outbox {
         var free: Boolean? = null
-        TransactionTemplate(DataSourceTransactionManager(ds)).executeWithoutResult {
+        TransactionTemplate(DataSourceTransactionManager(source)).executeWithoutResult {
             jdbc.execute("select pg_advisory_xact_lock('outbox_events'::regclass::oid::bigint)")
             free = lock()
         }
@@ -195,7 +140,7 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `lock bounds how long a vanished holder keeps it`() {
+    fun `lock bounds how long a vanished holder keeps it`() = outbox {
         var keepalive: String? = null
         lock {
             keepalive = it.queryForObject(
@@ -210,15 +155,15 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `lock is refused while another transaction holds it`() {
+    fun `lock is refused while another transaction holds it`() = outbox {
         var rival: Boolean? = null
         lock { rival = lock() }
         assertThat(rival, "two transactions held the relay lock at once").isEqualTo(false)
     }
 
     @Test
-    fun `lock is free again once its transaction ends`() {
-        val free = DriverManager.getConnection(pg.jdbcUrl, pg.username, pg.password).use { connection ->
+    fun `lock is free again once its transaction ends`() = outbox {
+        val free = connection().use { connection ->
             val source = SingleConnectionDataSource(connection, true)
             TransactionTemplate(DataSourceTransactionManager(source)).execute { OutboxStore(JdbcTemplate(source)).lock() }
             lock()
@@ -227,7 +172,7 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `lock of one outbox table leaves the table of another schema free`() {
+    fun `lock of one outbox table leaves the table of another schema free`() = outbox {
         val schema = "outbox_${UUID.randomUUID().toString().replace("-", "")}"
         jdbc.execute("create schema $schema")
         jdbc.execute("create table $schema.outbox_events (like public.outbox_events)")
@@ -237,7 +182,7 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `backlog counts pending events below the dead limit`() {
+    fun `backlog counts pending events below the dead limit`() = outbox {
         val limit = Random.nextInt(1, 6)
         val count = Random.nextInt(2, 9)
         repeat(count) { event(Random.nextLong(0, 900)) }
@@ -247,7 +192,7 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `backlog counts dead events at the dead limit`() {
+    fun `backlog counts dead events at the dead limit`() = outbox {
         val limit = Random.nextInt(1, 6)
         val count = Random.nextInt(1, 5)
         repeat(count) { event(Random.nextLong(0, 900)).also { id -> repeat(limit) { store.markFailed(id, "Serialization failed") } } }
@@ -259,7 +204,7 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `backlog measures how long the oldest pending event waits`() {
+    fun `backlog measures how long the oldest pending event waits`() = outbox {
         val wait = Random.nextLong(120, 86_400)
         event(wait)
         event(Random.nextLong(0, 100))
@@ -268,7 +213,7 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `backlog age skips a dead event ahead of the pending ones`() {
+    fun `backlog age skips a dead event ahead of the pending ones`() = outbox {
         val limit = Random.nextInt(1, 6)
         val wait = Random.nextLong(120, 86_400)
         event(wait * 2).also { id -> repeat(limit) { store.markFailed(id, "Invalid record") } }
@@ -277,12 +222,55 @@ class OutboxStoreIntegrationTest {
     }
 
     @Test
-    fun `backlog has no age without pending events`() {
+    fun `backlog has no age without pending events`() = outbox {
         store.markPublished(event(Random.nextLong(60, 86_400)))
         assertThat(store.backlog(Random.nextInt(1, 6)).age, "drained outbox reported a stuck head").isNull()
     }
 
-    private fun event(age: Long): UUID =
+    @Test
+    fun `purge deletes events published before the retention`() = outbox {
+        val retention = Random.nextLong(60, 86_400)
+        published(retention + Random.nextLong(5, 3_600))
+        store.purge(retention.seconds, Random.nextInt(1, 50))
+        assertThat(rows(), "event outlived its retention").isEqualTo(0)
+    }
+
+    @Test
+    fun `purge keeps unpublished events however old`() = outbox {
+        event(Random.nextLong(86_400, 9_000_000))
+        store.purge(Random.nextLong(1, 60).seconds, Random.nextInt(1, 50))
+        assertThat(rows(), "purge deleted an event the relay still owes").isEqualTo(1)
+    }
+
+    @Test
+    fun `purge keeps events published within the retention`() = outbox {
+        val retention = Random.nextLong(600, 86_400)
+        published(Random.nextLong(0, retention - 60))
+        store.purge(retention.seconds, Random.nextInt(1, 50))
+        assertThat(rows(), "purge deleted an event still within its retention").isEqualTo(1)
+    }
+
+    @Test
+    fun `purge deletes no more than the limit`() = outbox {
+        val limit = Random.nextInt(1, 6)
+        val count = limit + Random.nextInt(1, 6)
+        repeat(count) { published(Random.nextLong(7_200, 86_400)) }
+        store.purge(Random.nextLong(60, 3_600).seconds, limit)
+        assertThat(rows(), "one purge statement deleted more than its limit").isEqualTo(count - limit)
+    }
+
+    private fun Outbox.published(age: Long): UUID =
+        UUID.randomUUID().also { id ->
+            jdbc.update(
+                "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, created_at, published_at) " +
+                    "values (?, ?, 'Till', 'Closed', '{}'::jsonb, now() - make_interval(secs => ?), now() - make_interval(secs => ?))",
+                id, UUID.randomUUID(), age + 1, age,
+            )
+        }
+
+    private fun Outbox.rows(): Int? = jdbc.queryForObject("select count(*) from outbox_events", Int::class.java)
+
+    private fun Outbox.event(age: Long): UUID =
         UUID.randomUUID().also { id ->
             jdbc.update(
                 "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, created_at) " +
@@ -291,17 +279,14 @@ class OutboxStoreIntegrationTest {
             )
         }
 
-    private fun singleConnectionDataSource(): SingleConnectionDataSource =
-        SingleConnectionDataSource(pg.jdbcUrl, pg.username, pg.password, true).apply {
-            setAutoCommit(false)
-        }
-
-    private fun lock(schema: String = "public", during: (JdbcTemplate) -> Unit = {}): Boolean {
-        val source = DriverManagerDataSource(pg.jdbcUrl, pg.username, pg.password)
+    private fun Outbox.lock(schema: String = "public", during: (JdbcTemplate) -> Unit = {}): Boolean {
+        val source = session()
         val session = JdbcTemplate(source)
         return TransactionTemplate(DataSourceTransactionManager(source)).execute {
             session.execute("set local search_path = $schema")
             OutboxStore(session).lock().also { if (it) during(session) }
         } == true
     }
+
+    private fun outbox(block: Outbox.() -> Unit) = Outbox(pg).block()
 }

@@ -5,6 +5,7 @@
 - [Schema](#schema)
 - [Operations](#operations)
 - [Metrics](#metrics)
+- [Upgrading to 6.0.0](#upgrading-to-600)
 
 Transactional outbox for reliable event publication to Kafka. A producer writes
 domain events to a database table inside the business transaction; a background
@@ -56,10 +57,11 @@ dual-write inconsistency.
 | `dema.outbox.enabled`           | `true`     | Master switch for the whole starter                                                        |
 | `dema.outbox.topic`             | (required) | Kafka topic to publish to                                                                  |
 | `dema.outbox.poll-interval-ms`  | `1000`     | Relay poll interval; also the wait after a first poll that found events but delivered none |
-| `dema.outbox.batch-size`        | `100`      | Rows per poll                                                                              |
+| `dema.outbox.batch-size`        | `100`      | Rows per poll and per purge statement                                                      |
 | `dema.outbox.max-attempts`      | `5`        | Event is dead after this many failures of the event itself                                 |
 | `dema.outbox.send-timeout-ms`   | `10000`    | Max wait per Kafka send acknowledgement                                                    |
 | `dema.outbox.max-backoff-ms`    | `60000`    | Cap of that wait, which doubles per such poll in a row; `0` turns it off                   |
+| `dema.outbox.retention`         | `7d`       | Age after publication at which the relay deletes an event; `0` keeps them forever          |
 | `dema.outbox.liquibase.enabled` | `true`     | Auto-create the `outbox_events` table                                                      |
 
 Metrics need no property: with `spring-boot-starter-actuator` the starter
@@ -73,7 +75,9 @@ changelog (Liquibase context `outbox`) programmatically — it does NOT register
 normally. To manage the schema yourself, set `dema.outbox.liquibase.enabled=false`
 and create the table with the columns: `id, aggregate_id, aggregate_type,
 event_type, payload (jsonb), attempts, last_error, created_at (timestamptz),
-published_at (timestamptz), seq (bigint identity)`.
+published_at (timestamptz), seq (bigint identity)`, plus the partial indexes
+`(seq) where published_at is null` for the relay and
+`(published_at) where published_at is not null` for the purge.
 
 ## Operations
 
@@ -82,6 +86,20 @@ published_at (timestamptz), seq (bigint identity)`.
   application and needs no scheduling setup on the consumer side. The relay
   runs its own JDBC transactions on the outbox `DataSource`, whatever
   transaction manager your application uses.
+- **Throughput:** a poll sends at most `batch-size` events in one
+  transaction, and the relay polls again at once while a poll delivers a
+  whole batch. It waits `poll-interval-ms` only after a poll that found fewer
+  events, failed, or met another relay holding the lock, so a backlog drains
+  in one go rather than at `batch-size` events per interval.
+- **Retention:** after its polls, the relay deletes events published more
+  than `retention` ago, by the database clock, `batch-size` rows per
+  statement. A tick runs one statement per poll plus one and stops early
+  once a statement finds fewer rows, so the purge keeps pace with
+  publication and a long expired tail drains over later ticks without
+  holding back publication. An unpublished event is never deleted, however
+  old or dead. A failed purge logs a warning and leaves the relay
+  unpaused; the next tick retries it. Replicas purge side by side and skip
+  each other's rows. `retention: 0` keeps every published event.
 - **Ordering:** rows are published in `seq` (insertion) order and keyed by
   `aggregate_id`, so per-aggregate order is preserved within a partition. A
   failed send ends the poll and the next poll starts from that row, so later
@@ -208,3 +226,46 @@ a service that builds its `MeterRegistry` without it binds the
     expr: max by (job) (outbox_events_dead) > 0
     for: 2m
   ```
+
+## Upgrading to 6.0.0
+
+- **Published events are deleted:** 6.0.0 deletes events published more than
+  7 days ago. To keep the history, set `dema.outbox.retention: 0` before
+  the upgrade.
+- **Expired tail:** events that piled up before the upgrade drain over later
+  ticks. Each tick deletes up to one `batch-size` more than its polls could
+  publish, two batches on an idle tick, so the row count goes down over
+  hours without stalling the relay. Autovacuum makes the space reusable for
+  new rows; the table and its indexes shrink on disk only with
+  `vacuum full` or `pg_repack`.
+- **Index:** the changeset builds `idx_outbox_published` with
+  `create index concurrently`, so inserts into `outbox_events` go on while
+  it builds, and skips the build when a valid index of that name and
+  definition exists. The build waits for transactions already running in
+  the database. On a large table, build the index before the upgrade, and
+  start the upgrade only once that build has finished:
+  ```sql
+  create index concurrently idx_outbox_published
+      on outbox_events (published_at) where published_at is not null;
+  ```
+  A build that fails with an error, or an index of that name with another
+  definition, is dropped and built again on the next startup.
+- **Killed startup:** a pod killed during the migration (probe, OOM,
+  rolling deploy) leaves the Liquibase lock taken, and every later startup
+  waits for it and fails. PostgreSQL does not stop the index build when its
+  client dies: the backend keeps building. Releasing the lock while it runs
+  makes the next startup wait for that build, drop the finished index and
+  build it again. Before releasing the lock:
+  1. Find the leftover build:
+     ```sql
+     select pid from pg_stat_activity where query ilike 'create index concurrently idx_outbox_published%';
+     ```
+  2. Wait for it to finish, so the index turns valid and the next startup
+     skips the build; or stop it with `select pg_cancel_backend(<pid>)`,
+     drop the invalid index it leaves with
+     `drop index concurrently idx_outbox_published`, and build the index
+     by hand as shown above.
+  3. Once no build runs and no instance is migrating, release the lock:
+     ```sql
+     update databasechangeloglock set locked = false, lockgranted = null, lockedby = null where id = 1;
+     ```

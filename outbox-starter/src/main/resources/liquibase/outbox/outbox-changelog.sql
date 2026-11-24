@@ -33,3 +33,12 @@ comment on column outbox_events.seq is 'Monotonic insertion sequence; defines re
 
 --changeset denis.markushin:outbox-events-attempts-rejections context:outbox
 comment on column outbox_events.attempts is 'Publish failures of the event itself (too large, unserializable); row is dead once attempts >= max-attempts';
+
+--changeset denis.markushin:outbox-events-published-index context:outbox runInTransaction:false
+--preconditions onFail:MARK_RAN
+--precondition-sql-check expectedResult:0 select count(*) from pg_index where indexrelid = to_regclass('idx_outbox_published') and indisvalid and pg_get_indexdef(indexrelid) like '%(published_at)%WHERE (published_at IS NOT NULL)'
+drop index concurrently if exists idx_outbox_published;
+create index concurrently idx_outbox_published on outbox_events (published_at) where published_at is not null;
+
+--changeset denis.markushin:outbox-events-published-retention context:outbox
+comment on column outbox_events.published_at is 'Timestamp when the event was published to Kafka; null while unpublished; the relay deletes the row once it is older than dema.outbox.retention';

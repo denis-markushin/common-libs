@@ -94,7 +94,7 @@ class OutboxAutoConfigurationIntegrationTest {
         fun kafkaTemplate(): KafkaTemplate<String, String> = mockk(relaxed = true)
     }
 
-    private val runner = ApplicationContextRunner()
+    private fun runner(): ApplicationContextRunner = ApplicationContextRunner()
         .withUserConfiguration(TestBeans::class.java)
         .withConfiguration(
             AutoConfigurations.of(
@@ -102,14 +102,12 @@ class OutboxAutoConfigurationIntegrationTest {
                 OutboxLiquibaseAutoConfiguration::class.java,
             ),
         )
-        // Very high poll interval so the relay tick does not fire during the short test.
         .withPropertyValues("dema.outbox.topic=test.topic", "dema.outbox.poll-interval-ms=3600000")
 
     @Test
     fun `context loads and publisher runs its own relay lifecycle`() {
-        runner.run { context ->
-            val publisher = context.getBean<OutboxPublisher>()
-            assertThat(publisher.isRunning).isTrue()
+        runner().run { context ->
+            assertThat(context.getBean<OutboxPublisher>().isRunning, "relay never started with the context").isTrue()
         }
     }
 
@@ -118,37 +116,41 @@ class OutboxAutoConfigurationIntegrationTest {
         ApplicationContextRunner()
             .withUserConfiguration(TestBeans::class.java)
             .withConfiguration(AutoConfigurations.of(OutboxAutoConfiguration::class.java))
-            // no dema.outbox.topic set -> blank default
             .run { context ->
-                assertThat(context.startupFailure).isNotNull()
+                assertThat(context.startupFailure, "starter booted without a topic to publish to").isNotNull()
+            }
+    }
+
+    @Test
+    fun `context fails when retention is negative`() {
+        runner()
+            .withPropertyValues("dema.outbox.retention=-${Random.nextInt(1, 90)}d")
+            .run { context ->
+                assertThat(context.startupFailure, "negative retention would purge every published event").isNotNull()
             }
     }
 
     @Test
     fun `liquibase migrator auto-creates outbox_events`() {
-        runner.run { context ->
-            assertThat(context.startupFailure == null).isTrue()
-            val ds = context.getBean<DataSource>()
-            ds.connection.use { c ->
-                val rs = c.createStatement().executeQuery(
-                    "select count(*) from information_schema.tables where table_name = 'outbox_events'",
-                )
-                rs.next()
-                assertThat(rs.getInt(1) == 1).isTrue()
-            }
+        runner().run { context ->
+            assertThat(
+                JdbcTemplate(context.getBean<DataSource>())
+                    .queryForObject("select count(*) from information_schema.tables where table_name = 'outbox_events'", Int::class.java),
+                "service started without its outbox table",
+            ).isEqualTo(1)
         }
     }
 
     @Test
     fun `service and publisher share a single OutboxStore bean`() {
-        runner.run { context ->
-            assertThat(context.getBeansOfType<OutboxStore>().size).isEqualTo(1)
+        runner().run { context ->
+            assertThat(context.getBeansOfType<OutboxStore>().size, "service and relay write through different stores").isEqualTo(1)
         }
     }
 
     @Test
     fun `actuator registry exposes the outbox gauges`() {
-        runner
+        runner()
             .withConfiguration(
                 AutoConfigurations.of(
                     MetricsAutoConfiguration::class.java,
@@ -164,14 +166,14 @@ class OutboxAutoConfigurationIntegrationTest {
 
     @Test
     fun `metrics back off without a meter registry`() {
-        runner.run { context ->
+        runner().run { context ->
             assertThat(context.containsBean("outboxMetrics"), "gauges registered with no registry to scrape them").isFalse()
         }
     }
 
     @Test
     fun `metrics back off when micrometer classes are filtered out`() {
-        runner
+        runner()
             .withBean(SimpleMeterRegistry::class.java)
             .withClassLoader(FilteredClassLoader("io.micrometer"))
             .run { context ->
