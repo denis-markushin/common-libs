@@ -44,7 +44,12 @@ object OrderByClausesMapping {
     class KeyScope(
         private val key: Enum<*>,
     ) {
-        /** Registers the provided [fields] for the current [key]. */
+        /**
+         * Registers the provided [fields] for the current [key].
+         *
+         * A field may be nullable in the table, but it must not be `null` in the rows a page selects:
+         * building the cursor of such a row throws [IllegalStateException] naming the field.
+         */
         fun fields(vararg fields: SortField<*>) {
             val prev = mapping.putIfAbsent(key, fields)
             check(prev == null) {

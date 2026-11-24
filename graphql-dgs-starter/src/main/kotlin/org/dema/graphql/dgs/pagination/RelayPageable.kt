@@ -1,5 +1,6 @@
 package org.dema.graphql.dgs.pagination
 
+import org.dema.graphql.dgs.error.exception.DomainValidationException
 import org.dema.graphql.dgs.utils.CursorUtils.decode
 import org.dema.graphql.dgs.utils.CursorUtils.into
 import org.dema.graphql.dgs.utils.OrderByClausesMapping
@@ -24,13 +25,22 @@ class RelayPageable(
     /** Order-by clauses associated with [sortingKey]. */
     val orderByClauses: Array<out SortField<*>> = OrderByClausesMapping.getFields(sortingKey)
 
-    /** Values decoded from [after] into the Java types of [orderByClauses] used for seek pagination. */
-    val seekValues: Array<out Any> =
-        after?.decode()?.also { values ->
-            check(values.size == orderByClauses.size) {
-                "Cursor size: [${values.size}] does not match orderBy fields size: [${orderByClauses.size}]"
-            }
-        }?.mapIndexed { index, value -> value.into(orderByClauses[index].`$field`().type) }?.toTypedArray() ?: emptyArray()
+    /**
+     * Values decoded from [after] into the Java types of [orderByClauses] used for seek pagination.
+     *
+     * @throws DomainValidationException if [after] is not a cursor of [orderByClauses]
+     */
+    val seekValues: Array<out Any> = after?.let(::seek) ?: emptyArray()
+
+    private fun seek(cursor: String): Array<out Any> =
+        try {
+            cursor.decode()
+                .also { check(it.size == orderByClauses.size) { "Cursor holds ${it.size} values for ${orderByClauses.size} sort fields" } }
+                .mapIndexed { index, value -> value.into(orderByClauses[index].`$field`().type) }
+                .toTypedArray()
+        } catch (e: RuntimeException) {
+            throw DomainValidationException(message = "Invalid cursor", path = "after", value = cursor, cause = e)
+        }
 
     override fun toString(): String = "RelayPageable(" +
         "first=$first, " +

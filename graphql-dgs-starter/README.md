@@ -1,5 +1,13 @@
 # graphql-dgs-starter
 
+- [Features](#features)
+- [Requirements](#requirements)
+- [Setup](#setup)
+- [Usage](#usage)
+- [AbstractBatchLoader for DGS / DataLoader](#abstractbatchloader-for-dgs--dataloader)
+- [Mutation error handling](#mutation-error-handling)
+- [License](#license)
+
 Spring Boot GraphQL starter that integrates [Netflix DGS Framework](https://netflix.github.io/dgs/)
 with [Jooq](https://www.jooq.org/) for building powerful and type-safe GraphQL APIs in Kotlin or Java.
 
@@ -154,6 +162,11 @@ call; without a filter only the base condition of the repository applies:
 fun getAll(relayPageable: RelayPageable, filter: UsersFilter?): Connection<User> =
   usersRepo.page(cs, relayPageable, filter)
 ```
+
+A sort field may be a nullable column, but it must not be `null` in the rows a page selects: seek pagination cannot
+continue past such a row. Building the cursor of that row throws `IllegalStateException` naming the field, so filter
+the `null` rows out in the query. A malformed `after` cursor throws `DomainValidationException` on path `after`, and
+the client gets `BAD_REQUEST`.
 
 ## AbstractBatchLoader for DGS / DataLoader
 
