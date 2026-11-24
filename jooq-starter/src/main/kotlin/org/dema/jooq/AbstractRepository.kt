@@ -4,9 +4,7 @@ import org.dema.jooq.audit.AuditSupport
 import org.dema.jooq.timestamps.TimestampsSupport
 import org.jooq.Condition
 import org.jooq.DSLContext
-import org.jooq.Field
 import org.jooq.InsertOnDuplicateSetMoreStep
-import org.jooq.InsertOnDuplicateSetStep
 import org.jooq.OrderField
 import org.jooq.Record
 import org.jooq.Result
@@ -85,12 +83,13 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
 
     /**
      * Inserts the given record. If a conflict on primary keys occurs, no action is taken. The RecordListener
-     * does not see this statement, so the audit actor columns are applied here.
+     * does not see this statement, so the timestamp and audit actor columns are applied here.
      *
      * @param record The record to insert.
      * @return The number of affected rows.
      */
     fun insertOnConflictDoNothing(record: R): Int {
+        timestampsSupport?.apply(record)
         auditSupport?.apply(record)
         return dsl.insertInto(table).set(record).onConflictDoNothing().execute()
     }
@@ -124,7 +123,7 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
     /**
      * Fetches a single record matching the provided condition.
      *
-     * @param forUpdate Whether to lock the record for update.
+     * @param forUpdate Whether to lock the record for update, waiting for a lock held by another transaction.
      * @param where Condition to match.
      * @return The matching record, or null if none found.
      */
@@ -133,13 +132,13 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         where: (T) -> Condition,
     ): R? = baseQuery()
         .and(where.invoke(table))
-        .apply { if (forUpdate) forUpdate().skipLocked() }
+        .apply { if (forUpdate) forUpdate() }
         .fetchOne()
 
     /**
      * Fetches all records matching the provided condition.
      *
-     * @param forUpdate Whether to lock the records for update.
+     * @param forUpdate Whether to lock the records for update, waiting for a lock held by another transaction.
      * @param where Condition to match.
      * @return A Result containing all matching records.
      */
@@ -148,7 +147,7 @@ abstract class AbstractRepository<T : Table<R>, R : UpdatableRecord<*>>(
         where: (T) -> Condition,
     ): Result<R> = baseQuery()
         .and(where.invoke(table))
-        .apply { if (forUpdate) forUpdate().skipLocked() }
+        .apply { if (forUpdate) forUpdate() }
         .fetch()
 
     /**
@@ -230,19 +229,13 @@ internal fun buildUpsert(
         .doUpdate()
     return when {
         updatable.isNotEmpty() -> {
-            updatable.drop(1).fold(step.setExcluded(updatable[0])) { acc, column -> acc.setExcluded(column) }
+            step.set(updatable.associateWith { excluded(it) })
         }
         kept.isNotEmpty() -> {
-            step.setSelf(kept[0])
+            step.set(mapOf(kept[0] to kept[0]))
         }
         else -> {
             error("upsert requires at least one updatable column or a preserved column on table ${table.name}")
         }
     }
 }
-
-private fun <A> InsertOnDuplicateSetStep<Record>.setExcluded(field: Field<A>): InsertOnDuplicateSetMoreStep<Record> =
-    set(field, excluded(field))
-
-private fun <A> InsertOnDuplicateSetStep<Record>.setSelf(field: Field<A>): InsertOnDuplicateSetMoreStep<Record> =
-    set(field, field)

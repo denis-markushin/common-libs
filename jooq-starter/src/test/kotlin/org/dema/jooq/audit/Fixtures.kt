@@ -1,5 +1,6 @@
 package org.dema.jooq.audit
 
+import org.jooq.CloseableDSLContext
 import org.jooq.DSLContext
 import org.jooq.TableField
 import org.jooq.UniqueKey
@@ -15,6 +16,7 @@ import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken
 import org.testcontainers.postgresql.PostgreSQLContainer
 import java.time.Instant
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
@@ -31,6 +33,8 @@ class TaskTable : TableImpl<TaskRecord>(DSL.name("task")) {
     val PAYLOAD: TableField<TaskRecord, String?> = createField(DSL.name("payload"), SQLDataType.CLOB, this, "")
     val CREATED_BY: TableField<TaskRecord, String?> = createField(DSL.name("created_by"), SQLDataType.CLOB, this, "")
     val UPDATED_BY: TableField<TaskRecord, String?> = createField(DSL.name("updated_by"), SQLDataType.CLOB, this, "")
+    val OPENED_AT: TableField<TaskRecord, OffsetDateTime?> = createField(DSL.name("opened_at"), SQLDataType.TIMESTAMPWITHTIMEZONE, this, "")
+    val EDITED_AT: TableField<TaskRecord, OffsetDateTime?> = createField(DSL.name("edited_at"), SQLDataType.TIMESTAMPWITHTIMEZONE, this, "")
 
     override fun getRecordType(): Class<TaskRecord> = TaskRecord::class.java
 
@@ -46,12 +50,15 @@ class TaskTable : TableImpl<TaskRecord>(DSL.name("task")) {
  */
 object TaskBase {
 
+    private val postgres by lazy { PostgreSQLContainer("postgres:15-alpine").apply { start() } }
+
     val dsl: DSLContext by lazy {
-        val postgres = PostgreSQLContainer("postgres:15-alpine").apply { start() }
-        DSL.using(postgres.jdbcUrl, postgres.username, postgres.password).also {
-            it.execute("create table task (id uuid primary key, payload text, created_by text, updated_by text)")
+        connect().also {
+            it.execute("create table task (id uuid primary key, payload text, created_by text, updated_by text, opened_at timestamptz, edited_at timestamptz)")
         }
     }
+
+    fun connect(): CloseableDSLContext = DSL.using(postgres.jdbcUrl, postgres.username, postgres.password)
 }
 
 fun user(login: String): Authentication = JwtAuthenticationToken(token(login), emptyList())

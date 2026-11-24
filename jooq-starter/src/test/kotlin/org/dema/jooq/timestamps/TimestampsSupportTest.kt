@@ -14,7 +14,7 @@ import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 
-class TimestampsApplierTest {
+class TimestampsSupportTest {
 
     @Test
     fun `populates offsetdatetime created and updated columns`() {
@@ -23,7 +23,7 @@ class TimestampsApplierTest {
             field(name("created_dt"), SQLDataType.OFFSETDATETIME),
             field(name("last_edited_dt"), SQLDataType.OFFSETDATETIME),
         )
-        TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
+        TimestampsSupport(clock, TimestampsProperties(createdAtColumn = "created_dt", updatedAtColumn = "last_edited_dt")).apply(record)
         assertThat(record.get("created_dt", OffsetDateTime::class.java))
             .isEqualTo(OffsetDateTime.now(clock))
     }
@@ -35,7 +35,7 @@ class TimestampsApplierTest {
             field(name("created_dt"), SQLDataType.OFFSETDATETIME),
             field(name("last_edited_dt"), SQLDataType.OFFSETDATETIME),
         )
-        TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
+        TimestampsSupport(clock, TimestampsProperties(createdAtColumn = "created_dt", updatedAtColumn = "last_edited_dt")).apply(record)
         assertThat(record.get("last_edited_dt", OffsetDateTime::class.java))
             .isEqualTo(OffsetDateTime.now(clock))
     }
@@ -48,7 +48,7 @@ class TimestampsApplierTest {
             field(name("last_edited_dt"), SQLDataType.OFFSETDATETIME),
         )
         record.set(field(name("last_edited_dt"), SQLDataType.OFFSETDATETIME), OffsetDateTime.parse("2000-01-01T00:00:00Z"))
-        TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
+        TimestampsSupport(clock, TimestampsProperties(createdAtColumn = "created_dt", updatedAtColumn = "last_edited_dt")).apply(record)
         assertThat(record.get("last_edited_dt", OffsetDateTime::class.java))
             .isEqualTo(OffsetDateTime.now(clock))
     }
@@ -62,7 +62,7 @@ class TimestampsApplierTest {
         )
         val original = OffsetDateTime.parse("2001-02-03T04:05:06Z")
         record.set(field(name("created_dt"), SQLDataType.OFFSETDATETIME), original)
-        TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
+        TimestampsSupport(clock, TimestampsProperties(createdAtColumn = "created_dt", updatedAtColumn = "last_edited_dt")).apply(record)
         assertThat(record.get("created_dt", OffsetDateTime::class.java))
             .isEqualTo(original)
     }
@@ -74,7 +74,7 @@ class TimestampsApplierTest {
             field(name("created_dt"), SQLDataType.LOCALDATETIME),
             field(name("last_edited_dt"), SQLDataType.LOCALDATETIME),
         )
-        TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
+        TimestampsSupport(clock, TimestampsProperties(createdAtColumn = "created_dt", updatedAtColumn = "last_edited_dt")).apply(record)
         assertThat(record.get("last_edited_dt", LocalDateTime::class.java))
             .isEqualTo(LocalDateTime.now(clock))
     }
@@ -86,7 +86,7 @@ class TimestampsApplierTest {
             field(name("created_dt"), SQLDataType.INSTANT),
             field(name("last_edited_dt"), SQLDataType.INSTANT),
         )
-        TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
+        TimestampsSupport(clock, TimestampsProperties(createdAtColumn = "created_dt", updatedAtColumn = "last_edited_dt")).apply(record)
         assertThat(record.get("last_edited_dt", Instant::class.java))
             .isEqualTo(Instant.now(clock))
     }
@@ -97,7 +97,7 @@ class TimestampsApplierTest {
         val record = DSL.using(org.jooq.SQLDialect.POSTGRES).newRecord(
             field(name("last_edited_dt"), SQLDataType.VARCHAR),
         )
-        TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
+        TimestampsSupport(clock, TimestampsProperties(createdAtColumn = "created_dt", updatedAtColumn = "last_edited_dt")).apply(record)
         assertThat(record.get("last_edited_dt")).isNull()
     }
 
@@ -107,7 +107,7 @@ class TimestampsApplierTest {
         val record = DSL.using(org.jooq.SQLDialect.POSTGRES).newRecord(
             field(name("last_edited_dt"), SQLDataType.OFFSETDATETIME),
         )
-        TimestampsApplier.apply(record, "created_dt", "last_edited_dt", clock)
+        TimestampsSupport(clock, TimestampsProperties(createdAtColumn = "created_dt", updatedAtColumn = "last_edited_dt")).apply(record)
         assertThat(record.get("last_edited_dt", OffsetDateTime::class.java))
             .isEqualTo(OffsetDateTime.now(clock))
     }
