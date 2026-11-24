@@ -3,26 +3,29 @@ package org.dema.minio
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import io.minio.GetPresignedObjectUrlArgs
+import io.minio.ListObjectsArgs
 import io.minio.MinioClient
 import io.minio.PutObjectArgs
+import io.minio.Result
+import io.minio.messages.Item
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import io.mockk.verify
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayInputStream
+import kotlin.random.Random
 
 class MinioStorageTest {
 
     @Test
     fun `signs a presigned url with the client that carries the public endpoint`() {
-        val client = mockk<MinioClient>()
         val signer = mockk<MinioClient>()
-        every { signer.getPresignedObjectUrl(any<GetPresignedObjectUrlArgs>()) } returns "https://public/x"
-        storage(client, signer).presignedUrl("survey/7.pdf", "survey.pdf")
-        verify(exactly = 0) {
-            client.getPresignedObjectUrl(any<GetPresignedObjectUrlArgs>())
-        }
+        val url = "https://files-${Random.nextInt(1000)}.example.org/survey/7.pdf"
+        every { signer.getPresignedObjectUrl(any<GetPresignedObjectUrlArgs>()) } returns url
+        assertThat(
+            storage(mockk(), signer).presignedUrl("survey/7.pdf", "survey.pdf"),
+            "a presigned url signed by the internal client leaks a host no browser can reach",
+        ).isEqualTo(url)
     }
 
     @Test
@@ -59,6 +62,21 @@ class MinioStorageTest {
             args.captured.contentType(),
             "a known content type must survive to MinIO untouched",
         ).isEqualTo("application/pdf")
+    }
+
+    @Test
+    fun `pulls no more objects than the caller consumes`() {
+        val client = mockk<MinioClient>()
+        var pulls = 0
+        every { client.listObjects(any<ListObjectsArgs>()) } returns generateSequence {
+            pulls++
+            Result<Item>(object : Item("report-${Random.nextInt()}.csv") {})
+        }.take(Random.nextInt(2, 50)).asIterable()
+        storage(client, mockk()).list("reports-${Random.nextInt(1000)}/", Random.nextBoolean()).first()
+        assertThat(
+            pulls,
+            "a listing must not drag the whole bucket into memory to hand out one object",
+        ).isEqualTo(1)
     }
 
     private fun storage(client: MinioClient, signer: MinioClient) = MinioStorage(

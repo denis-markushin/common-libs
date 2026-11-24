@@ -1,5 +1,10 @@
 # MinIO starter
 
+- [Two endpoints, two clients](#two-endpoints-two-clients)
+- [Keys are strings](#keys-are-strings)
+- [Listing](#listing)
+- [Bucket creation](#bucket-creation)
+
 Object storage over one bucket, wired from configuration.
 
 ```kotlin
@@ -43,6 +48,19 @@ supplies the host it writes into the URL. Both are ordinary beans named
 `MinioStorage` takes opaque keys. What separates a prefix from an object name is
 the caller's convention, so a service that thinks in paths converts on its own
 side rather than having a convention imposed here.
+
+## Listing
+
+`list` returns a lazy `Sequence<Item>`. MinIO pages are fetched as the caller
+consumes it, so a bucket of any size never sits in memory at once:
+
+```kotlin
+storage.list("surveys/").map { it.objectName() }.take(100).toList()
+```
+
+A listing error surfaces while iterating, at the element where it happened.
+Each pass over the sequence lists the bucket again; call `toList()` once when
+the result is needed more than once.
 
 ## Bucket creation
 
