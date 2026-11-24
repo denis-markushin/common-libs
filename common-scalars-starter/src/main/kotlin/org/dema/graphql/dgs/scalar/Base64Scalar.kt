@@ -13,37 +13,32 @@ import java.util.Base64
 import java.util.Locale
 
 /**
- * GraphQL scalar that serializes and deserializes Base64 encoded strings.
+ * GraphQL scalar for binary data: a Base64 string on the wire, raw bytes on the JVM,
+ * so payloads that are not text, such as PNG or PDF, pass unchanged.
  */
 @DgsScalar(name = "Base64")
-class Base64Scalar : Coercing<String, String> {
-    private val pattern: Regex = "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$".toRegex()
-
+class Base64Scalar : Coercing<ByteArray, String> {
     override fun serialize(dataFetcherResult: Any, graphQLContext: GraphQLContext, locale: Locale): String =
-        if (dataFetcherResult is String) {
-            Base64.getEncoder().encodeToString(dataFetcherResult.toByteArray(Charsets.UTF_8))
-        } else {
-            throw CoercingSerializeException("$dataFetcherResult is not Base64")
+        (dataFetcherResult as? ByteArray)?.let(Base64.getEncoder()::encodeToString)
+            ?: throw CoercingSerializeException("Expected ByteArray for Base64 output but found ${dataFetcherResult::class}")
+
+    override fun parseValue(input: Any, graphQLContext: GraphQLContext, locale: Locale): ByteArray =
+        decode(input as? String ?: throw CoercingParseValueException("Expected String for Base64 input but found ${input::class}")) {
+            CoercingParseValueException("Invalid Base64 input: ${it.message}", it)
         }
 
-    override fun parseValue(input: Any, graphQLContext: GraphQLContext, locale: Locale): String =
-        if (input is String) {
-            validate(input)
-            String(Base64.getDecoder().decode(input))
-        } else {
-            throw CoercingParseValueException("Expected ${String::class} but found ${input::class}")
+    override fun parseLiteral(input: Value<*>, variables: CoercedVariables, graphQLContext: GraphQLContext, locale: Locale): ByteArray =
+        decode((input as? StringValue)?.value ?: throw CoercingParseLiteralException("Expected StringValue for Base64 literal but found ${input::class}")) {
+            CoercingParseLiteralException("Invalid Base64 literal: ${it.message}", it)
         }
 
-    override fun parseLiteral(input: Value<*>, variables: CoercedVariables, graphQLContext: GraphQLContext, locale: Locale): String =
-        if (input is StringValue) {
-            val value = input.value ?: throw CoercingParseLiteralException("Value '$input' has incorrect format")
-            validate(value)
-            String(Base64.getDecoder().decode(value))
-        } else {
-            throw CoercingParseLiteralException("Value '$input' has incorrect format")
-        }
+    override fun valueToLiteral(input: Any, graphQLContext: GraphQLContext, locale: Locale): Value<*> =
+        StringValue.of(serialize(input, graphQLContext, locale))
 
-    private fun validate(input: String) {
-        if (!pattern.matches(input)) throw CoercingSerializeException("$input is not valid Base64 string")
-    }
+    private fun decode(value: String, error: (IllegalArgumentException) -> Exception): ByteArray =
+        try {
+            Base64.getDecoder().decode(value)
+        } catch (exc: IllegalArgumentException) {
+            throw error(exc)
+        }
 }

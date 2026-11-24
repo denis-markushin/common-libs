@@ -14,6 +14,11 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeParseException
 import java.util.Locale
 
+/**
+ * GraphQL scalar for Java [LocalDateTime] values that hold UTC time: on the wire they carry
+ * a trailing `Z`, such as `2026-11-24T10:15:30.5Z`, while the value itself is never shifted.
+ * Default `LocalDateTime` scalar unless `dgs.graphql.dema.scalars.localdatetime.format` says otherwise.
+ */
 @DgsScalar(name = "LocalDateTime")
 class ZuluLocalDateTimeScalar : LocalDateTimeScalar {
 
@@ -55,5 +60,5 @@ class ZuluLocalDateTimeScalar : LocalDateTimeScalar {
         input: Any,
         graphQLContext: GraphQLContext,
         locale: Locale,
-    ): Value<*> = StringValue.of((input as LocalDateTime).format(DateUtils.ZULU_FORMATTER))
+    ): Value<*> = StringValue.of(serialize(input, graphQLContext, locale))
 }
