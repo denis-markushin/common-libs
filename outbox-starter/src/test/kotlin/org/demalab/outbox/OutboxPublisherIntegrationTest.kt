@@ -1,0 +1,696 @@
+package org.demalab.outbox
+
+import assertk.assertThat
+import assertk.assertions.contains
+import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
+import assertk.assertions.isNotNull
+import assertk.assertions.isNull
+import assertk.assertions.isTrue
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.spyk
+import org.apache.kafka.clients.consumer.ConsumerConfig
+import org.apache.kafka.clients.consumer.KafkaConsumer
+import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.common.InvalidRecordException
+import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.common.config.ConfigException
+import org.apache.kafka.common.errors.ClusterAuthorizationException
+import org.apache.kafka.common.errors.InterruptException
+import org.apache.kafka.common.errors.RecordBatchTooLargeException
+import org.apache.kafka.common.errors.RecordTooLargeException
+import org.apache.kafka.common.errors.SaslAuthenticationException
+import org.apache.kafka.common.errors.SerializationException
+import org.apache.kafka.common.errors.TopicAuthorizationException
+import org.apache.kafka.common.errors.UnknownTopicOrPartitionException
+import org.apache.kafka.common.serialization.StringDeserializer
+import org.apache.kafka.common.serialization.StringSerializer
+import org.awaitility.Awaitility.await
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.ValueSource
+import org.springframework.dao.DataAccessResourceFailureException
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.datasource.DataSourceTransactionManager
+import org.springframework.jdbc.datasource.DriverManagerDataSource
+import org.springframework.kafka.KafkaException
+import org.springframework.kafka.core.DefaultKafkaProducerFactory
+import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.kafka.support.SendResult
+import org.springframework.transaction.support.TransactionTemplate
+import org.testcontainers.junit.jupiter.Container
+import org.testcontainers.junit.jupiter.Testcontainers
+import org.testcontainers.kafka.KafkaContainer
+import org.testcontainers.postgresql.PostgreSQLContainer
+import java.net.ServerSocket
+import java.sql.Connection
+import java.sql.SQLException
+import java.sql.Timestamp
+import java.time.Duration
+import java.util.UUID
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.TimeoutException
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.random.Random
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TestTimeSource
+import kotlin.time.TimeSource
+import org.apache.kafka.common.KafkaException as ClientKafkaException
+import org.apache.kafka.common.errors.TimeoutException as KafkaTimeoutException
+
+@Testcontainers
+class OutboxPublisherIntegrationTest {
+
+    companion object {
+        @Container
+        @JvmStatic
+        val pg = PostgreSQLContainer("postgres:17.5-alpine")
+
+        @Container
+        @JvmStatic
+        val broker = KafkaContainer("apache/kafka-native:3.8.0")
+    }
+
+    @Test
+    fun `successful send marks row published`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Project", UUID.randomUUID(), "ProjectCreated", "{}")
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        publisher.publish()
+        assertThat(publication(id), "broker took the event but the outbox still owes it").isNotNull()
+    }
+
+    @Test
+    fun `send exceeding timeout records the timeout`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Project", UUID.randomUUID(), "SlowEvt", """{"slow":true}""")
+        every { kafka.send(any(), any(), any()) } returns hang(TimeoutException())
+        publisher.publish()
+        assertThat(failure(id), "stuck event hides that the broker never answered").isEqualTo("Kafka send timed out after 250 ms")
+    }
+
+    @Test
+    fun `send timeout does not count an attempt`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Ledger", UUID.randomUUID(), "Posted", """{"amount":-31}""")
+        every { kafka.send(any(), any(), any()) } returns hang(TimeoutException())
+        publisher.publish()
+        assertThat(attempts(id), "slow broker counted against a healthy event").isEqualTo(0)
+    }
+
+    @Test
+    fun `async failure records root cause not the wrapper`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Project", UUID.randomUUID(), "AsyncFail", """{"x":"y"}""")
+        val failed = CompletableFuture<SendResult<String, String>>()
+        failed.completeExceptionally(RuntimeException("broker unreachable: node -3"))
+        every { kafka.send(any(), any(), any()) } returns failed
+        publisher.publish()
+        assertThat(failure(id), "stuck event hides the broker error behind its wrapper").isEqualTo("broker unreachable: node -3")
+    }
+
+    @Test
+    fun `interrupted send restores the interrupt flag`() = rig {
+        store.insert(UUID.randomUUID(), "Project", UUID.randomUUID(), "IntEvt", "{}")
+        every { kafka.send(any(), any(), any()) } returns hang(InterruptedException())
+        publisher.publish()
+        assertThat(Thread.interrupted(), "relay swallowed the shutdown interrupt").isTrue()
+    }
+
+    @Test
+    fun `interrupted send does not count an attempt`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Shift", UUID.randomUUID(), "Closed", """{"till":4}""")
+        every { kafka.send(any(), any(), any()) } returns hang(InterruptedException())
+        publisher.publish()
+        Thread.interrupted()
+        assertThat(attempts(id), "shutdown counted against a healthy event").isEqualTo(0)
+    }
+
+    @Test
+    fun `producer interrupted while blocked does not count an attempt`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Shift", UUID.randomUUID(), "Opened", """{"till":-9}""")
+        every { kafka.send(any(), any(), any()) } answers { throw InterruptException(InterruptedException()) }
+        publisher.publish()
+        Thread.interrupted()
+        assertThat(attempts(id), "rolling deploy during an outage counted against a healthy event").isEqualTo(0)
+    }
+
+    @Test
+    fun `producer interrupted while blocked records no error`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Shift", UUID.randomUUID(), "Opened", """{"till":17}""")
+        every { kafka.send(any(), any(), any()) } answers { throw InterruptException(InterruptedException()) }
+        publisher.publish()
+        Thread.interrupted()
+        assertThat(failure(id), "shutdown reported as a failure of a healthy event").isNull()
+    }
+
+    @Test
+    fun `events sent before a failure stay published`() = rig {
+        val head = UUID.randomUUID()
+        store.insert(head, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":8}""")
+        store.insert(UUID.randomUUID(), "Order", UUID.randomUUID(), "OrderClosed", """{"seat":-8,"bad":true}""")
+        refuse("bad")
+        publisher.publish()
+        assertThat(publication(head), "failure rolled back an event the broker already took").isNotNull()
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        classes = [
+            ConfigException::class,
+            SaslAuthenticationException::class,
+            TopicAuthorizationException::class,
+            ClusterAuthorizationException::class,
+        ],
+    )
+    fun `failure outside the event does not count an attempt`(fault: Class<out Exception>) = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"guests":${Random.nextInt(1, 40)}}""")
+        val cause = fault.getConstructor(String::class.java).newInstance("kafka-${Random.nextInt()} refused")
+        every { kafka.send(any(), any(), any()) } throws ClientKafkaException("Failed to construct kafka producer", cause)
+        publisher.publish()
+        assertThat(attempts(id), "${fault.simpleName} counted against a healthy event").isEqualTo(0)
+    }
+
+    @ParameterizedTest
+    @ValueSource(
+        classes = [
+            RecordTooLargeException::class,
+            RecordBatchTooLargeException::class,
+            SerializationException::class,
+            InvalidRecordException::class,
+        ],
+    )
+    fun `failure of the event itself counts an attempt`(fault: Class<out Exception>) = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"guests":${Random.nextInt(1, 40)}}""")
+        val cause = fault.getConstructor(String::class.java).newInstance("record ${Random.nextInt()} rejected")
+        every { kafka.send(any(), any(), any()) } throws KafkaException("Send failed", cause)
+        publisher.publish()
+        assertThat(attempts(id), "${fault.simpleName} never counted toward the dead limit").isEqualTo(1)
+    }
+
+    @Test
+    fun `missing topic records the topic not the partition error`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"total":64}""")
+        val metadata = KafkaTimeoutException(
+            "Topic orders.v7 not present in metadata after 5000 ms.",
+            UnknownTopicOrPartitionException("This server does not host this topic-partition."),
+        )
+        every { kafka.send(any(), any(), any()) } throws KafkaException("Send failed", metadata)
+        publisher.publish()
+        assertThat(failure(id), "stuck event hides which topic is missing").isNotNull().contains("orders.v7")
+    }
+
+    @Test
+    fun `transient failure keeps events of one aggregate in insertion order`() = rig {
+        val aggregate = UUID.randomUUID()
+        val payloads = List(3) { """{"n": ${Random.nextInt()}}""" }
+        payloads.forEach { store.insert(UUID.randomUUID(), "Order", aggregate, "OrderClosed", it) }
+        val wire = mutableListOf<String>()
+        var outage = true
+        every { kafka.send(any(), any(), any()) } answers {
+            if (outage) {
+                outage = false
+                throw KafkaTimeoutException("Expiring 1 record(s)")
+            }
+            wire += thirdArg<String>()
+            CompletableFuture.completedFuture(mockk(relaxed = true))
+        }
+        repeat(2) { publisher.publish() }
+        assertThat(wire, "a later event overtook the one that failed").isEqualTo(payloads)
+    }
+
+    @Test
+    fun `relay skips polls while paused after a failure`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":12}""")
+        every { kafka.send(any(), any(), any()) } throws rejection()
+        val props = OutboxProperties(
+            topic = "orders.v1",
+            pollIntervalMs = 7_300,
+            batchSize = 29,
+            maxAttempts = 9,
+            sendTimeoutMs = 3_100,
+            maxBackoffMs = 90_000,
+        )
+        val relay = OutboxPublisher(store, kafka, props, tx, TestTimeSource())
+        repeat(3) { relay.tick() }
+        assertThat(attempts(id), "relay hammered the broker instead of pausing").isEqualTo(1)
+    }
+
+    @Test
+    fun `relay polls again once the pause elapses`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":-2}""")
+        every { kafka.send(any(), any(), any()) } throws rejection()
+        val props = OutboxProperties(
+            topic = "orders.v1",
+            pollIntervalMs = 4_100,
+            batchSize = 13,
+            maxAttempts = 9,
+            sendTimeoutMs = 2_700,
+            maxBackoffMs = 50_000,
+        )
+        val time = TestTimeSource()
+        val relay = OutboxPublisher(store, kafka, props, tx, time)
+        relay.tick()
+        time += 4_100.milliseconds
+        relay.tick()
+        assertThat(attempts(id), "relay never resumed after its pause").isEqualTo(2)
+    }
+
+    @Test
+    fun `poll that published before a failure lifts the pause`() = rig {
+        val tail = UUID.randomUUID()
+        store.insert(UUID.randomUUID(), "Order", UUID.randomUUID(), "OrderClosed", """{"seat":3}""")
+        store.insert(tail, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":-3,"bad":true}""")
+        refuse("bad")
+        val props = OutboxProperties(
+            topic = "orders.v1",
+            pollIntervalMs = 5_300,
+            batchSize = 21,
+            maxAttempts = 9,
+            sendTimeoutMs = 2_300,
+            maxBackoffMs = 80_000,
+        )
+        val relay = OutboxPublisher(store, kafka, props, tx, TestTimeSource())
+        repeat(2) { relay.tick() }
+        assertThat(attempts(tail), "relay paused although its poll delivered events").isEqualTo(2)
+    }
+
+    @Test
+    fun `failed database poll pauses the relay`() = rig {
+        val calls = AtomicInteger()
+        val database = object : DriverManagerDataSource() {
+            override fun getConnection(): Connection {
+                calls.incrementAndGet()
+                throw SQLException("Connection to db-${Random.nextInt(1, 99)}:5432 refused")
+            }
+        }
+        val props = OutboxProperties(
+            topic = "orders.v1",
+            pollIntervalMs = 3_900,
+            batchSize = 11,
+            maxAttempts = 4,
+            sendTimeoutMs = 1_400,
+            maxBackoffMs = 40_000,
+        )
+        val relay = OutboxPublisher(
+            OutboxStore(JdbcTemplate(database)),
+            kafka,
+            props,
+            TransactionTemplate(DataSourceTransactionManager(database)),
+            TestTimeSource(),
+        )
+        repeat(3) { relay.tick() }
+        assertThat(calls.get(), "relay hammered a database that is down").isEqualTo(1)
+    }
+
+    @Test
+    fun `manual publish leaves the relay pause in place`() = rig {
+        val tail = UUID.randomUUID()
+        store.insert(UUID.randomUUID(), "Order", UUID.randomUUID(), "OrderClosed", """{"seat":31}""")
+        every { kafka.send(any(), any(), any()) } throws rejection()
+        val props = OutboxProperties(
+            topic = "orders.v1",
+            pollIntervalMs = 6_200,
+            batchSize = 17,
+            maxAttempts = 1,
+            sendTimeoutMs = 1_900,
+            maxBackoffMs = 70_000,
+        )
+        val relay = OutboxPublisher(store, kafka, props, tx, TestTimeSource())
+        relay.tick()
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        relay.publish()
+        store.insert(tail, "Order", UUID.randomUUID(), "OrderCancelled", """{"seat":31}""")
+        relay.tick()
+        assertThat(publication(tail), "caller thread lifted the relay pause").isNull()
+    }
+
+    @Test
+    fun `second relay does not publish while the first holds its batch`() = rig {
+        val tail = UUID.randomUUID()
+        val aggregate = UUID.randomUUID()
+        store.insert(UUID.randomUUID(), "Order", aggregate, "OrderClosed", """{"seat":${Random.nextInt()}}""")
+        store.insert(tail, "Order", aggregate, "OrderReopened", """{"seat":${Random.nextInt()}}""")
+        val props = OutboxProperties(
+            topic = "orders.${UUID.randomUUID()}",
+            pollIntervalMs = 3_900,
+            batchSize = 1,
+            maxAttempts = 6,
+            sendTimeoutMs = 10_000,
+            maxBackoffMs = 41_000,
+        )
+        var second: Result<Timestamp?>? = null
+        producer(broker.bootstrapServers, ProducerConfig.MAX_BLOCK_MS_CONFIG to 10_000) { template ->
+            every { kafka.send(any(), any(), any()) } answers {
+                second = runCatching {
+                    peer(template, props).publish()
+                    publication(tail)
+                }
+                CompletableFuture.completedFuture(mockk(relaxed = true))
+            }
+            relay(kafka, props).publish()
+        }
+        assertThat(second, "second relay overtook the batch the first one holds, or never polled").isEqualTo(Result.success(null))
+    }
+
+    @Test
+    fun `relay skipped by a busy peer polls again on the next tick`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"seat":${Random.nextInt()}}""")
+        val props = OutboxProperties(
+            topic = "orders.v1",
+            pollIntervalMs = 5_300,
+            batchSize = 23,
+            maxAttempts = 7,
+            sendTimeoutMs = 2_300,
+            maxBackoffMs = 64_000,
+        )
+        val relay = OutboxPublisher(store, kafka, props, tx, TestTimeSource())
+        every { kafka.send(any(), any(), any()) } throws rejection()
+        hold { relay.tick() }
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        relay.tick()
+        assertThat(publication(id), "relay paused after a peer merely held the lock").isNotNull()
+    }
+
+    @Test
+    fun `tick publishes every full batch it finds`() = rig {
+        val batch = Random.nextInt(2, 10)
+        repeat(batch * Random.nextInt(2, 6) + Random.nextInt(0, batch)) {
+            store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
+        }
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 2_900,
+            batchSize = batch,
+            maxAttempts = 3,
+            sendTimeoutMs = 1_300,
+            maxBackoffMs = 33_000,
+        )
+        OutboxPublisher(store, kafka, props, tx, TestTimeSource()).tick()
+        assertThat(pending(), "relay left full batches waiting for later ticks").isEqualTo(0)
+    }
+
+    @Test
+    fun `tick stops between batches once interrupted`() = rig {
+        val batch = Random.nextInt(2, 10)
+        repeat(batch * 2) {
+            store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
+        }
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 4_700,
+            batchSize = batch,
+            maxAttempts = 2,
+            sendTimeoutMs = 1_100,
+            maxBackoffMs = 27_000,
+        )
+        val relay = OutboxPublisher(store, kafka, props, tx, TestTimeSource())
+        Thread.currentThread().interrupt()
+        relay.tick()
+        Thread.interrupted()
+        assertThat(pending(), "interrupted relay kept draining batches").isEqualTo(batch)
+    }
+
+    @Test
+    fun `tick purges as many expired events as it publishes`() = rig {
+        val batch = Random.nextInt(2, 10)
+        val retention = Duration.ofMinutes(Random.nextLong(5, 600))
+        val count = batch * Random.nextInt(2, 6) + Random.nextInt(0, batch)
+        repeat(count) {
+            published(retention.plusSeconds(Random.nextLong(5, 86_400)))
+            store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
+        }
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 3_300,
+            batchSize = batch,
+            maxAttempts = 4,
+            sendTimeoutMs = 1_700,
+            maxBackoffMs = 29_000,
+            retention = retention,
+        )
+        OutboxPublisher(store, kafka, props, tx, TestTimeSource()).tick()
+        assertThat(rows(), "purge fell behind publication").isEqualTo(count)
+    }
+
+    @Test
+    fun `tick leaves the rest of a long expired tail to later ticks`() = rig {
+        val batch = Random.nextInt(2, 10)
+        val retention = Duration.ofHours(Random.nextLong(1, 200))
+        val tail = batch * Random.nextInt(3, 8) + Random.nextInt(1, batch)
+        repeat(tail) { published(retention.plusSeconds(Random.nextLong(5, 86_400))) }
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 3_700,
+            batchSize = batch,
+            maxAttempts = 6,
+            sendTimeoutMs = 1_900,
+            maxBackoffMs = 37_000,
+            retention = retention,
+        )
+        OutboxPublisher(store, kafka, props, tx, TestTimeSource()).tick()
+        assertThat(rows(), "relay purged the whole expired tail in one tick").isEqualTo(tail - 2 * batch)
+    }
+
+    @Test
+    fun `zero retention keeps published events`() = rig {
+        val count = Random.nextInt(1, 6)
+        repeat(count) { published(Duration.ofSeconds(Random.nextLong(1, 86_400))) }
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 2_100,
+            batchSize = 19,
+            maxAttempts = 5,
+            sendTimeoutMs = 1_200,
+            maxBackoffMs = 31_000,
+            retention = Duration.ZERO,
+        )
+        OutboxPublisher(store, kafka, props, tx, TestTimeSource()).tick()
+        assertThat(rows(), "disabled retention wiped the event history").isEqualTo(count)
+    }
+
+    @Test
+    fun `failed purge leaves the relay unpaused`() = rig {
+        store.insert(UUID.randomUUID(), "Till", UUID.randomUUID(), "Rung", """{"sum":${Random.nextInt()}}""")
+        every { kafka.send(any(), any(), any()) } returns CompletableFuture.completedFuture(mockk(relaxed = true))
+        val faulty = spyk(store)
+        every { faulty.purge(any(), any()) } throws DataAccessResourceFailureException("Connection to db-${Random.nextInt(1, 99)}:5432 reset")
+        val props = OutboxProperties(
+            topic = "tills.v1",
+            pollIntervalMs = 5_900,
+            batchSize = 15,
+            maxAttempts = 3,
+            sendTimeoutMs = 1_500,
+            maxBackoffMs = 47_000,
+            retention = Duration.ofHours(Random.nextLong(1, 400)),
+        )
+        val relay = OutboxPublisher(faulty, kafka, props, tx, TestTimeSource())
+        relay.tick()
+        assertThat(relay.paused, "failed purge paused the relay").isFalse()
+    }
+
+    @Test
+    fun `unreachable broker does not count an attempt`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"total":731}""")
+        val props = props("orders.${UUID.randomUUID()}", attempts = 1, timeout = 2_000)
+        producer(nowhere(), ProducerConfig.MAX_BLOCK_MS_CONFIG to 300) { relay(it, props).publish() }
+        assertThat(attempts(id), "broker outage counted against a healthy event").isEqualTo(0)
+    }
+
+    @Test
+    fun `unreachable broker records the root cause not the template wrapper`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Order", UUID.randomUUID(), "OrderClosed", """{"total":88}""")
+        val props = props("orders.${UUID.randomUUID()}", attempts = 2, timeout = 2_000)
+        producer(nowhere(), ProducerConfig.MAX_BLOCK_MS_CONFIG to 300) { relay(it, props).publish() }
+        assertThat(failure(id), "stuck event hides which topic the broker could not serve").isNotNull().contains(props.topic)
+    }
+
+    @Test
+    fun `unreachable broker stops the batch at the first event`() = rig {
+        val tail = UUID.randomUUID()
+        val aggregate = UUID.randomUUID()
+        store.insert(UUID.randomUUID(), "Order", aggregate, "OrderClosed", """{"total":5}""")
+        store.insert(tail, "Order", aggregate, "OrderCancelled", """{"total":-5}""")
+        val props = props("orders.${UUID.randomUUID()}", attempts = 3, timeout = 2_000)
+        producer(nowhere(), ProducerConfig.MAX_BLOCK_MS_CONFIG to 300) { relay(it, props).publish() }
+        assertThat(failure(tail), "relay kept sending into a dead broker").isNull()
+    }
+
+    @Test
+    fun `events held back by an outage reach the topic in insertion order`() = rig {
+        val aggregate = UUID.randomUUID()
+        val payloads = List(4) { """{"n": ${Random.nextInt()}}""" }
+        payloads.forEach { store.insert(UUID.randomUUID(), "Order", aggregate, "OrderClosed", it) }
+        val props = props("orders.${UUID.randomUUID()}", attempts = 1, timeout = 10_000)
+        producer(nowhere(), ProducerConfig.MAX_BLOCK_MS_CONFIG to 300) { relay(it, props).publish() }
+        producer(broker.bootstrapServers, ProducerConfig.MAX_BLOCK_MS_CONFIG to 10_000) { relay(it, props).publish() }
+        assertThat(records(props.topic, payloads.size), "outage lost or reordered events of one aggregate")
+            .isEqualTo(payloads)
+    }
+
+    @Test
+    fun `oversized event counts an attempt`() = rig {
+        val id = UUID.randomUUID()
+        store.insert(id, "Menu", UUID.randomUUID(), "MenuPublished", blob())
+        val props = props("menus.${UUID.randomUUID()}", attempts = 4, timeout = 10_000)
+        producer(broker.bootstrapServers, ProducerConfig.MAX_REQUEST_SIZE_CONFIG to 1_024) { relay(it, props).publish() }
+        assertThat(attempts(id), "record too large never counted toward the dead limit").isEqualTo(1)
+    }
+
+    @Test
+    fun `oversized event stops the batch`() = rig {
+        val tail = UUID.randomUUID()
+        store.insert(UUID.randomUUID(), "Menu", UUID.randomUUID(), "MenuPublished", blob())
+        store.insert(tail, "Menu", UUID.randomUUID(), "MenuPublished", """{"dish":"borscht"}""")
+        val props = props("menus.${UUID.randomUUID()}", attempts = 4, timeout = 10_000)
+        producer(broker.bootstrapServers, ProducerConfig.MAX_REQUEST_SIZE_CONFIG to 1_024) { relay(it, props).publish() }
+        assertThat(publication(tail), "event overtook the failed one ahead of it").isNull()
+    }
+
+    @Test
+    fun `dead event stops blocking the relay`() = rig {
+        val tail = UUID.randomUUID()
+        store.insert(UUID.randomUUID(), "Menu", UUID.randomUUID(), "MenuPublished", blob())
+        store.insert(tail, "Menu", UUID.randomUUID(), "MenuPublished", """{"dish":"pelmeni"}""")
+        val props = props("menus.${UUID.randomUUID()}", attempts = 1, timeout = 10_000)
+        producer(broker.bootstrapServers, ProducerConfig.MAX_REQUEST_SIZE_CONFIG to 1_024) { template ->
+            repeat(2) { relay(template, props).publish() }
+        }
+        assertThat(publication(tail), "dead event kept blocking the events behind it").isNotNull()
+    }
+
+    private fun props(topic: String, attempts: Int, timeout: Long): OutboxProperties =
+        OutboxProperties(
+            topic = topic,
+            pollIntervalMs = 1_700,
+            batchSize = 37,
+            maxAttempts = attempts,
+            sendTimeoutMs = timeout,
+            maxBackoffMs = 23_000,
+        )
+
+    private fun hang(fault: Exception): CompletableFuture<SendResult<String, String>> {
+        val future = mockk<CompletableFuture<SendResult<String, String>>>()
+        every { future.get(any<Long>(), any()) } throws fault
+        return future
+    }
+
+    private fun rejection(): KafkaException =
+        KafkaException("Send failed", RecordTooLargeException("The message is ${Random.nextInt(1_100_000, 9_000_000)} bytes"))
+
+    private fun <T> producer(
+        bootstrap: String,
+        vararg config: Pair<String, Any>,
+        block: (KafkaTemplate<String, String>) -> T,
+    ): T {
+        val factory = DefaultKafkaProducerFactory<String, String>(
+            mapOf<String, Any>(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrap,
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
+                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG to StringSerializer::class.java,
+            ) + config,
+        )
+        try {
+            return block(KafkaTemplate(factory))
+        } finally {
+            factory.destroy()
+        }
+    }
+
+    private fun records(topic: String, count: Int): List<String> =
+        KafkaConsumer<String, String>(
+            mapOf<String, Any>(
+                ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG to broker.bootstrapServers,
+                ConsumerConfig.AUTO_OFFSET_RESET_CONFIG to "earliest",
+                ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
+                ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG to StringDeserializer::class.java,
+            ),
+        ).use { consumer ->
+            consumer.assign(listOf(TopicPartition(topic, 0)))
+            val values = mutableListOf<String>()
+            await().atMost(Duration.ofSeconds(30)).pollInSameThread().until {
+                consumer.poll(Duration.ofMillis(200)).forEach { values += it.value() }
+                values.size >= count
+            }
+            values
+        }
+
+    private fun nowhere(): String = ServerSocket(0).use { "127.0.0.1:${it.localPort}" }
+
+    private fun blob(): String =
+        """{"blob": "${(1..Random.nextInt(2_000, 4_000)).map { ('a'..'z').random() }.joinToString("")}"}"""
+
+    private fun rig(block: Rig.() -> Unit) = Rig().block()
+
+    /** One test's own outbox database, a strict Kafka mock and a relay wired to both. */
+    private inner class Rig : Outbox(pg) {
+        val kafka = mockk<KafkaTemplate<String, String>>()
+        val publisher = OutboxPublisher(store, kafka, props("test.topic", attempts = 5, timeout = 250), tx, TimeSource.Monotonic)
+
+        fun relay(template: KafkaTemplate<String, String>, props: OutboxProperties): OutboxPublisher =
+            OutboxPublisher(store, template, props, tx, TimeSource.Monotonic)
+
+        fun peer(template: KafkaTemplate<String, String>, props: OutboxProperties): OutboxPublisher {
+            val source = session()
+            return OutboxPublisher(
+                OutboxStore(JdbcTemplate(source)),
+                template,
+                props,
+                TransactionTemplate(DataSourceTransactionManager(source)),
+                TimeSource.Monotonic,
+            )
+        }
+
+        fun hold(block: () -> Unit) {
+            val source = session()
+            TransactionTemplate(DataSourceTransactionManager(source)).executeWithoutResult {
+                check(OutboxStore(JdbcTemplate(source)).lock()) { "Relay lock is already held by another session" }
+                block()
+            }
+        }
+
+        fun attempts(id: UUID): Int? =
+            jdbc.queryForObject("select attempts from outbox_events where id = ?", Int::class.java, id)
+
+        fun pending(): Int? =
+            jdbc.queryForObject("select count(*) from outbox_events where published_at is null", Int::class.java)
+
+        fun rows(): Int? = jdbc.queryForObject("select count(*) from outbox_events", Int::class.java)
+
+        fun published(age: Duration) {
+            jdbc.update(
+                "insert into outbox_events (id, aggregate_id, aggregate_type, event_type, payload, published_at) " +
+                    "values (?, ?, 'Till', 'Closed', '{}'::jsonb, now() - make_interval(secs => ?))",
+                UUID.randomUUID(), UUID.randomUUID(), age.seconds,
+            )
+        }
+
+        fun failure(id: UUID): String? =
+            jdbc.queryForObject("select last_error from outbox_events where id = ?", String::class.java, id)
+
+        fun publication(id: UUID): Timestamp? =
+            jdbc.queryForObject("select published_at from outbox_events where id = ?", Timestamp::class.java, id)
+
+        fun refuse(marker: String) {
+            every { kafka.send(any(), any(), any()) } answers {
+                if (thirdArg<String>().contains(marker)) throw rejection()
+                CompletableFuture.completedFuture(mockk(relaxed = true))
+            }
+        }
+    }
+}

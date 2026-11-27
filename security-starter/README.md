@@ -29,7 +29,7 @@ authentication mechanisms.
 
 Add the dependency:
 ```kotlin
-implementation("io.github.denis-markushin:security-starter:x.x.x")
+implementation("org.demalab:security-starter:x.x.x")
 ```
 The base chain works out of the box. The X-Roles filter is off until you opt in
 (see below).

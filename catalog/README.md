@@ -14,7 +14,7 @@ dependencyResolutionManagement {
     }
     versionCatalogs {
         create("dema") {
-            from("io.github.denis-markushin:catalog:2.1.0")
+            from("org.demalab:catalog:7.0.0")
         }
     }
 }

@@ -37,7 +37,7 @@ Add the dependency:
 
 ```kotlin
 dependencies {
-  implementation("io.github.denis-markushin:graphql-dgs-starter:<latest-version>")
+  implementation("org.demalab:graphql-dgs-starter:<latest-version>")
 }
 ```
 
@@ -212,29 +212,29 @@ rethrown and reaches the top-level `errors[]` with the matching `ErrorType`
 
 ### Built-in error types
 
-| GraphQL type              | Kotlin class                                         | Intended use                                                       |
-|---------------------------|------------------------------------------------------|--------------------------------------------------------------------|
-| `NotFoundError`           | `org.dema.graphql.dgs.error.NotFoundError`           | Requested entity does not exist.                                   |
-| `ValidationError`         | `org.dema.graphql.dgs.error.ValidationError`         | Input fails validation (`path`, `value` optional).                 |
-| `ConflictError`           | `org.dema.graphql.dgs.error.ConflictError`           | Operation conflicts with current state (`reason` is a code).       |
-| `UnauthorizedError`       | `org.dema.graphql.dgs.error.UnauthorizedError`       | Caller is not authenticated.                                       |
-| `ForbiddenError`          | `org.dema.graphql.dgs.error.ForbiddenError`          | Caller lacks permission for the operation.                         |
-| `ServiceUnavailableError` | `org.dema.graphql.dgs.error.ServiceUnavailableError` | Service is temporarily unavailable (`retryAfterSeconds` optional). |
-| `RuntimeError`            | `org.dema.graphql.dgs.error.RuntimeError`            | Fallback for any unclassified exception; generic message only.     |
+| GraphQL type              | Kotlin class                                            | Intended use                                                       |
+|---------------------------|---------------------------------------------------------|--------------------------------------------------------------------|
+| `NotFoundError`           | `org.demalab.graphql.dgs.error.NotFoundError`           | Requested entity does not exist.                                   |
+| `ValidationError`         | `org.demalab.graphql.dgs.error.ValidationError`         | Input fails validation (`path`, `value` optional).                 |
+| `ConflictError`           | `org.demalab.graphql.dgs.error.ConflictError`           | Operation conflicts with current state (`reason` is a code).       |
+| `UnauthorizedError`       | `org.demalab.graphql.dgs.error.UnauthorizedError`       | Caller is not authenticated.                                       |
+| `ForbiddenError`          | `org.demalab.graphql.dgs.error.ForbiddenError`          | Caller lacks permission for the operation.                         |
+| `ServiceUnavailableError` | `org.demalab.graphql.dgs.error.ServiceUnavailableError` | Service is temporarily unavailable (`retryAfterSeconds` optional). |
+| `RuntimeError`            | `org.demalab.graphql.dgs.error.RuntimeError`            | Fallback for any unclassified exception; generic message only.     |
 
 ### Built-in exception types
 
 | Exception                                                                                              | Default error produced    |
 |--------------------------------------------------------------------------------------------------------|---------------------------|
-| `org.dema.graphql.dgs.exception.EntityNotFoundException`                                               | `NotFoundError`           |
+| `org.demalab.graphql.dgs.exception.EntityNotFoundException`                                            | `NotFoundError`           |
 | `com.netflix.graphql.dgs.exceptions.DgsEntityNotFoundException` (legacy fallback)                      | `NotFoundError`           |
-| `org.dema.graphql.dgs.exception.DomainValidationException`                                             | `ValidationError`         |
-| `org.dema.graphql.dgs.exception.ConflictException`                                                     | `ConflictError`           |
-| `org.dema.graphql.dgs.exception.UnauthorizedException`                                                 | `UnauthorizedError`       |
+| `org.demalab.graphql.dgs.exception.DomainValidationException`                                          | `ValidationError`         |
+| `org.demalab.graphql.dgs.exception.ConflictException`                                                  | `ConflictError`           |
+| `org.demalab.graphql.dgs.exception.UnauthorizedException`                                              | `UnauthorizedError`       |
 | `org.springframework.security.core.AuthenticationException` (when Spring Security is on the classpath) | `UnauthorizedError`       |
-| `org.dema.graphql.dgs.exception.ForbiddenException`                                                    | `ForbiddenError`          |
+| `org.demalab.graphql.dgs.exception.ForbiddenException`                                                 | `ForbiddenError`          |
 | `org.springframework.security.access.AccessDeniedException` (when Spring Security is on the classpath) | `ForbiddenError`          |
-| `org.dema.graphql.dgs.exception.ServiceUnavailableException`                                           | `ServiceUnavailableError` |
+| `org.demalab.graphql.dgs.exception.ServiceUnavailableException`                                        | `ServiceUnavailableError` |
 | anything else                                                                                          | `RuntimeError`            |
 
 ### Unclassified exceptions
@@ -285,7 +285,7 @@ logs `Mutation failed: <field>`; on the rethrow path, and for every query,
 DGS's handler logs `Exception while executing data fetcher for <path>`.
 Both pick the level the same way: a `DgsException` at its `logLevel`,
 anything else at `ERROR`. The six exceptions under
-`org.dema.graphql.dgs.error.exception` log at `WARN`;
+`org.demalab.graphql.dgs.error.exception` log at `WARN`;
 `DgsEntityNotFoundException` and Spring Security's exceptions log at
 `ERROR`. A `DgsException` of your own picks its level through the
 `logLevel` constructor argument.
@@ -316,14 +316,14 @@ path, just as for a query. A consumer that declares its own
                 useNetflixDgs = true
                 typeMapping.putAll(
                     mapOf(
-                        "ErrorInterface"    to "org.dema.graphql.dgs.error.ErrorInterface",
-                        "NotFoundError"     to "org.dema.graphql.dgs.error.NotFoundError",
-                        "ValidationError"   to "org.dema.graphql.dgs.error.ValidationError",
-                        "ConflictError"     to "org.dema.graphql.dgs.error.ConflictError",
-                        "UnauthorizedError"      to "org.dema.graphql.dgs.error.UnauthorizedError",
-                        "ForbiddenError"         to "org.dema.graphql.dgs.error.ForbiddenError",
-                        "ServiceUnavailableError" to "org.dema.graphql.dgs.error.ServiceUnavailableError",
-                        "RuntimeError"           to "org.dema.graphql.dgs.error.RuntimeError",
+                        "ErrorInterface"    to "org.demalab.graphql.dgs.error.ErrorInterface",
+                        "NotFoundError"     to "org.demalab.graphql.dgs.error.NotFoundError",
+                        "ValidationError"   to "org.demalab.graphql.dgs.error.ValidationError",
+                        "ConflictError"     to "org.demalab.graphql.dgs.error.ConflictError",
+                        "UnauthorizedError"      to "org.demalab.graphql.dgs.error.UnauthorizedError",
+                        "ForbiddenError"         to "org.demalab.graphql.dgs.error.ForbiddenError",
+                        "ServiceUnavailableError" to "org.demalab.graphql.dgs.error.ServiceUnavailableError",
+                        "RuntimeError"           to "org.demalab.graphql.dgs.error.RuntimeError",
                     ),
                 )
             }
@@ -450,7 +450,7 @@ errors of its own.
     ```
 
 2. Write the Kotlin class by hand, as a `data class` implementing
-   `org.dema.graphql.dgs.error.ErrorInterface` in a package of your
+   `org.demalab.graphql.dgs.error.ErrorInterface` in a package of your
    application, and point codegen at it with `typeMapping`:
 
     ```kotlin
@@ -530,12 +530,12 @@ errors of its own.
 
 ### Adding a brand-new exception type to the starter (for contributors)
 
-1. Add the exception class under `org.dema.graphql.dgs.exception`, passing
+1. Add the exception class under `org.demalab.graphql.dgs.exception`, passing
    `logLevel = Level.WARN` (`org.slf4j.event.Level`) to `DgsException`.
-2. Add the error `data class` under `org.dema.graphql.dgs.error` and, if the
+2. Add the error `data class` under `org.demalab.graphql.dgs.error` and, if the
    error is wire-visible, the matching GraphQL type in
    `src/main/resources/schema/common-errors.graphqls`.
-3. Add a default mapper under `org.dema.graphql.dgs.errormapper` with its
+3. Add a default mapper under `org.demalab.graphql.dgs.errormapper` with its
    own `companion object const val ORDER`.
 4. Register the bean in `GraphQLErrorAutoConfiguration` with
    `@ConditionalOnMissingBean(name = "...")`.

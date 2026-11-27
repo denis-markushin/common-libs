@@ -4,7 +4,7 @@ plugins {
     `version-catalog`
 }
 
-val demaGroup = "io.github.denis-markushin"
+val demaGroup = "org.demalab"
 val libsVersion = "dema-libs"
 
 /*

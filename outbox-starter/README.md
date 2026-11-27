@@ -16,7 +16,7 @@ dual-write inconsistency.
 
 1. Add the dependency:
    ```kotlin
-   implementation("io.github.denis-markushin:outbox-starter:x.x.x")
+   implementation("org.demalab:outbox-starter:x.x.x")
    ```
 2. Configure the topic:
    ```yaml

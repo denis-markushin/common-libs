@@ -22,7 +22,7 @@ Spring Boot starter for jOOQ. Provides:
 ### Add dependency
 
 ```kotlin
-implementation("io.github.denis-markushin:jooq-starter:x.x.x")
+implementation("org.demalab:jooq-starter:x.x.x")
 ```
 
 The timestamps listener is enabled by default. Disable or reconfigure via properties:
