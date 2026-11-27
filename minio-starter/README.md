@@ -8,7 +8,7 @@
 Object storage over one bucket, wired from configuration.
 
 ```kotlin
-implementation("io.github.denis-markushin:minio-starter:x.x.x")
+implementation("org.demalab:minio-starter:x.x.x")
 ```
 
 ```yaml

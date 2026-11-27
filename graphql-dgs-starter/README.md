@@ -37,7 +37,7 @@ Add the dependency:
 
 ```kotlin
 dependencies {
-  implementation("io.github.denis-markushin:graphql-dgs-starter:<latest-version>")
+  implementation("org.demalab:graphql-dgs-starter:<latest-version>")
 }
 ```
 

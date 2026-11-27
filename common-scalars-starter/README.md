@@ -34,7 +34,7 @@ Add the dependency to your **Gradle (Kotlin DSL)** configuration:
 
 ```kotlin
 dependencies {
-    implementation("io.github.denis-markushin:common-scalars-starter:<latest-version>")
+    implementation("org.demalab:common-scalars-starter:<latest-version>")
 }
 ```
 

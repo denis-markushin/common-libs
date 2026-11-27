@@ -1,7 +1,7 @@
 # Common Libs
 
 [![Build](https://github.com/denis-markushin/common-libs/actions/workflows/gradle-ci.yml/badge.svg)](https://github.com/denis-markushin/common-libs/actions/workflows/gradle-ci.yml)
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.denis-markushin/bom)](https://central.sonatype.com/artifact/io.github.denis-markushin/bom)
+[![Maven Central](https://img.shields.io/maven-central/v/org.demalab/bom)](https://central.sonatype.com/artifact/org.demalab/bom)
 [![License](https://img.shields.io/github/license/denis-markushin/common-libs)](LICENSE)
 [![JDK](https://img.shields.io/badge/JDK-25%2B-blue)](#requirements)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.x-brightgreen)](#requirements)
@@ -13,8 +13,8 @@
 - [License](#license)
 
 Spring Boot starters and Kotlin libraries shared across microservices, published to
-[Maven Central](https://central.sonatype.com/artifact/io.github.denis-markushin/bom) under the
-`io.github.denis-markushin` group.
+[Maven Central](https://central.sonatype.com/artifact/org.demalab/bom) under the
+`org.demalab` group.
 
 ## Modules
 
@@ -44,10 +44,10 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("io.github.denis-markushin:bom:2.9.2"))
-    implementation("io.github.denis-markushin:service-core:2.9.2")
-    implementation("io.github.denis-markushin:jooq-starter:2.9.2")
-    testImplementation("io.github.denis-markushin:test-common:2.9.2")
+    implementation(platform("org.demalab:bom:7.0.0"))
+    implementation("org.demalab:service-core:7.0.0")
+    implementation("org.demalab:jooq-starter:7.0.0")
+    testImplementation("org.demalab:test-common:7.0.0")
 }
 ```
 

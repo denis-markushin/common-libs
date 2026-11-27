@@ -20,7 +20,7 @@ generator.
 2. Add the library to the generator classpath:
    ```kotlin
    dependencies {
-       jooqCodegen("io.github.denis-markushin:jooq-liquibase-testcontainer:x.x.x")
+       jooqCodegen("org.demalab:jooq-liquibase-testcontainer:x.x.x")
    }
    ```
 3. Point the generator at the URL and at jOOQ's plain PostgreSQL database:
@@ -42,7 +42,7 @@ generator.
    }
    ```
 
-The `io.github.denis-markushin.jooq-codegen` convention plugin does all of this for you.
+The `org.demalab.jooq-codegen` convention plugin does all of this for you.
 
 ## How it works
 
