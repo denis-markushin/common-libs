@@ -155,5 +155,5 @@ class DefaultMutationResolverTest {
 private fun captured(): ListAppender<ILoggingEvent> =
     ListAppender<ILoggingEvent>().also {
         it.start()
-        (LoggerFactory.getLogger("org.demalab.graphql.dgs.mutation.DefaultMutationResolver") as Logger).addAppender(it)
+        (LoggerFactory.getLogger(DefaultMutationResolver::class.java) as Logger).addAppender(it)
     }
