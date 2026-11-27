@@ -1,0 +1,166 @@
+package org.demalab.outbox
+
+import io.github.oshai.kotlinlogging.KotlinLogging
+import org.apache.kafka.common.InvalidRecordException
+import org.apache.kafka.common.errors.ApiException
+import org.apache.kafka.common.errors.InterruptException
+import org.apache.kafka.common.errors.RecordBatchTooLargeException
+import org.apache.kafka.common.errors.RecordTooLargeException
+import org.apache.kafka.common.errors.SerializationException
+import org.springframework.context.SmartLifecycle
+import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.transaction.support.TransactionTemplate
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
+import kotlin.time.toKotlinDuration
+
+private val log = KotlinLogging.logger {}
+
+/**
+ * Relay that drains outbox_events to Kafka on a dedicated `outbox-relay` thread.
+ * Owns its scheduling (no global @EnableScheduling) and its transactions
+ * (programmatic [TransactionTemplate], no proxy magic).
+ * A failed send ends the poll, so later events neither overtake it nor queue up
+ * behind a dead broker; a poll that found events but delivered none pauses the
+ * relay with a growing [Backoff], one that delivered anything or found nothing
+ * to send lifts the pause. Only a
+ * failure of the event itself (too large, unserializable) counts toward
+ * `max-attempts`; broker, network, authentication and ACL failures never kill events.
+ * The pause belongs to the relay thread alone: [publish], internal to the
+ * starter, neither waits for it nor lifts it, and a metrics scrape only reads it through
+ * [paused].
+ * Each poll first takes a database lock held until its batch commits, so only
+ * one relay publishes at a time across replicas and no batch overtakes
+ * another; a relay that finds the lock taken skips the poll unpaused.
+ * A tick polls again while the previous poll delivered a whole batch, so a
+ * backlog drains in one tick instead of one batch per poll interval. A tick
+ * whose polls did not fail then deletes events published more than
+ * `retention` ago, a batch per statement, one statement per poll plus one,
+ * so the purge keeps pace with publication while a long expired tail
+ * spreads over later ticks instead of holding the relay; a failed purge is
+ * logged and leaves the pause alone.
+ */
+class OutboxPublisher internal constructor(
+    private val store: OutboxStore,
+    private val kafka: KafkaTemplate<String, String>,
+    private val props: OutboxProperties,
+    private val tx: TransactionTemplate,
+    time: TimeSource,
+) : SmartLifecycle {
+    private var relay: ScheduledExecutorService? = null
+    private val backoff = Backoff(props.pollIntervalMs.milliseconds, props.maxBackoffMs.milliseconds, time)
+
+    override fun start() {
+        relay = Executors.newSingleThreadScheduledExecutor { task ->
+            Thread(task, "outbox-relay").apply { isDaemon = true }
+        }.also {
+            it.scheduleWithFixedDelay(::tick, props.pollIntervalMs, props.pollIntervalMs, TimeUnit.MILLISECONDS)
+        }
+    }
+
+    override fun stop() {
+        relay?.shutdownNow()
+        try {
+            if (relay?.awaitTermination(5, TimeUnit.SECONDS) == false) {
+                log.warn { "Outbox relay did not terminate within 5s" }
+            }
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+        relay = null
+    }
+
+    override fun isRunning(): Boolean = relay != null
+
+    internal val paused: Boolean get() = backoff.paused
+
+    internal fun tick() {
+        if (!backoff.ready()) return
+        try {
+            var polls = 0
+            do {
+                val poll = poll()
+                polls++
+                when (poll) {
+                    Poll.BUSY -> log.debug { "Outbox relay skipped a poll of ${props.topic} while another relay holds the lock" }
+                    Poll.STALLED -> backoff.fail()
+                    Poll.DONE, Poll.FULL -> backoff.clear()
+                }
+            } while (poll == Poll.FULL && !Thread.currentThread().isInterrupted)
+            purge(polls)
+        } catch (e: Throwable) {
+            log.error(e) { "Outbox relay poll failed" }
+            backoff.fail()
+        }
+    }
+
+    internal fun publish() {
+        poll()
+    }
+
+    private fun poll(): Poll = tx.execute { if (store.lock()) drain() else Poll.BUSY }
+
+    private fun drain(): Poll {
+        val batch = store.fetchUnpublished(props.batchSize, props.maxAttempts)
+        if (batch.isEmpty()) return Poll.DONE
+        val count = batch.takeWhile(::send).size
+        log.debug { "Published $count/${batch.size} outbox event(s) to ${props.topic}" }
+        return when (count) {
+            0 -> Poll.STALLED
+            props.batchSize -> Poll.FULL
+            else -> Poll.DONE
+        }
+    }
+
+    private fun purge(polls: Int) {
+        if (props.retention.isZero) return
+        try {
+            repeat(polls + 1) {
+                val count = store.purge(props.retention.toKotlinDuration(), props.batchSize)
+                if (count < props.batchSize || Thread.currentThread().isInterrupted) return
+            }
+        } catch (e: Throwable) {
+            log.warn(e) { "Outbox relay failed to purge events published more than ${props.retention} ago" }
+        }
+    }
+
+    private fun send(row: OutboxRow): Boolean =
+        try {
+            kafka.send(props.topic, row.aggregateId.toString(), row.payload)
+                .get(props.sendTimeoutMs, TimeUnit.MILLISECONDS)
+            store.markPublished(row.id)
+            true
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            false
+        } catch (e: InterruptException) {
+            Thread.currentThread().interrupt()
+            false
+        } catch (e: TimeoutException) {
+            log.error(e) { "Failed to publish outbox event ${row.id}" }
+            store.markDeferred(row.id, "Kafka send timed out after ${props.sendTimeoutMs} ms")
+            false
+        } catch (e: Exception) {
+            val chain = generateSequence<Throwable>(e) { it.cause }
+            val cause = chain.firstOrNull { it is ApiException } ?: chain.last()
+            val error = cause.message ?: cause.javaClass.name
+            log.error(e) { "Failed to publish outbox event ${row.id}" }
+            if (chain.any { it.rejection }) store.markFailed(row.id, error) else store.markDeferred(row.id, error)
+            false
+        }
+
+    private val Throwable.rejection: Boolean
+        get() = this is RecordTooLargeException || this is RecordBatchTooLargeException ||
+            this is SerializationException || this is InvalidRecordException
+
+    /**
+     * Outcome of one poll: [BUSY] while another relay holds the lock, [STALLED]
+     * when it found events but delivered none, [FULL] when it delivered a whole
+     * batch and more may wait, [DONE] otherwise.
+     */
+    private enum class Poll { BUSY, STALLED, DONE, FULL }
+}

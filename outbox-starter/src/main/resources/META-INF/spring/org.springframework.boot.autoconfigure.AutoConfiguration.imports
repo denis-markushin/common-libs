@@ -1,2 +1,2 @@
-org.dema.outbox.OutboxLiquibaseAutoConfiguration
-org.dema.outbox.OutboxAutoConfiguration
+org.demalab.outbox.OutboxLiquibaseAutoConfiguration
+org.demalab.outbox.OutboxAutoConfiguration

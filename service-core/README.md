@@ -15,7 +15,7 @@ JVM default time zone.
 
 Logbook is on by default for requests under `/api/**` and writes JSON at
 `TRACE` (service-core raises `org.zalando.logbook` to `TRACE` for you). The
-defaults live in `org/dema/servicecore/logbook.properties`; any `logbook.*`
+defaults live in `org/demalab/servicecore/logbook.properties`; any `logbook.*`
 property you set wins (see [Defaults](#defaults)).
 
 Only metadata is logged: method, URI, status, headers, and duration. Bodies
@@ -118,7 +118,7 @@ property to turn this off.
 ## Defaults
 
 service-core's defaults live next to its classes, in
-`org/dema/servicecore/actuator.properties`, `service-core.properties` and
+`org/demalab/servicecore/actuator.properties`, `service-core.properties` and
 `logbook.properties`. An `EnvironmentPostProcessor` adds them before any
 configuration class is parsed, so every condition sees them, at the lowest
 precedence: any property the service sets in `application.yml`, the config
